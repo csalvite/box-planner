@@ -69,7 +69,10 @@ function normalizeBlock(block: ApiBlock): Block {
           ? exercise.id
           : `${block.id}-exercise-${index}`,
       )
-    : undefined;
+    : Array.from(
+        { length: block._count?.exercises ?? 0 },
+        (_item, index) => `${block.id}-exercise-${index}`,
+      );
 
   return {
     id: block.id,

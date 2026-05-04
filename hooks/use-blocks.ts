@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import {
   createBlock,
   deleteBlock,
@@ -14,6 +19,16 @@ import type { Block } from "@/lib/types";
 
 export const blocksQueryKey = (organizationId?: string | null) =>
   ["blocks", organizationId] as const;
+
+async function refreshBlocks(
+  queryClient: QueryClient,
+  organizationId?: string | null,
+) {
+  const queryKey = blocksQueryKey(organizationId);
+
+  await queryClient.invalidateQueries({ queryKey });
+  await queryClient.refetchQueries({ queryKey, type: "active" });
+}
 
 export function useBlocks(organizationId?: string | null) {
   const { accessToken } = useAuth();
@@ -43,16 +58,18 @@ export function useCreateBlock(organizationId?: string | null) {
   return useMutation({
     mutationFn: (input: BlockFormInput) =>
       createBlock(organizationId as string, input, accessToken),
-    onSuccess: (block) => {
+    onSuccess: async (block) => {
       const queryKey = blocksQueryKey(organizationId);
 
       queryClient.setQueryData<Block[]>(queryKey, (blocks = []) => [
         block,
         ...blocks.filter((currentBlock) => currentBlock.id !== block.id),
       ]);
-      void queryClient.invalidateQueries({
-        queryKey,
-      });
+      await refreshBlocks(queryClient, organizationId);
+      queryClient.setQueryData<Block[]>(queryKey, (blocks = []) => [
+        block,
+        ...blocks.filter((currentBlock) => currentBlock.id !== block.id),
+      ]);
     },
   });
 }
@@ -69,7 +86,7 @@ export function useUpdateBlock(organizationId?: string | null) {
       blockId: string;
       input: Partial<BlockFormInput>;
     }) => updateBlock(organizationId as string, blockId, input, accessToken),
-    onSuccess: (block) => {
+    onSuccess: async (block) => {
       const queryKey = blocksQueryKey(organizationId);
 
       queryClient.setQueryData<Block[]>(queryKey, (blocks = []) =>
@@ -77,9 +94,12 @@ export function useUpdateBlock(organizationId?: string | null) {
           currentBlock.id === block.id ? block : currentBlock,
         ),
       );
-      void queryClient.invalidateQueries({
-        queryKey,
-      });
+      await refreshBlocks(queryClient, organizationId);
+      queryClient.setQueryData<Block[]>(queryKey, (blocks = []) =>
+        blocks.map((currentBlock) =>
+          currentBlock.id === block.id ? block : currentBlock,
+        ),
+      );
     },
   });
 }
@@ -91,15 +111,13 @@ export function useDeleteBlock(organizationId?: string | null) {
   return useMutation({
     mutationFn: (blockId: string) =>
       deleteBlock(organizationId as string, blockId, accessToken),
-    onSuccess: (_response, blockId) => {
+    onSuccess: async (_response, blockId) => {
       const queryKey = blocksQueryKey(organizationId);
 
       queryClient.setQueryData<Block[]>(queryKey, (blocks = []) =>
         blocks.filter((block) => block.id !== blockId),
       );
-      void queryClient.invalidateQueries({
-        queryKey,
-      });
+      await refreshBlocks(queryClient, organizationId);
     },
   });
 }

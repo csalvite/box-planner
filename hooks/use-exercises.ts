@@ -59,7 +59,11 @@ function updateBlockDuration(
     (blocks = []) =>
       blocks.map((block) =>
         block.id === blockId
-          ? { ...block, duration: Math.round(estimatedDurationSec / 60) }
+          ? {
+              ...block,
+              duration: Math.round(estimatedDurationSec / 60),
+              exercises: exercises.map((exercise) => exercise.id),
+            }
           : block,
       ),
   );
@@ -92,6 +96,9 @@ async function refreshExerciseData(
   await queryClient.refetchQueries({ queryKey: exercisesKey, type: "active" });
   await queryClient.invalidateQueries({ queryKey: blocksKey });
   await queryClient.refetchQueries({ queryKey: blocksKey, type: "active" });
+
+  const exercises = queryClient.getQueryData<BlockExercise[]>(exercisesKey);
+  updateBlockDuration(queryClient, organizationId, blockId, exercises);
 }
 
 export function useBlockExercises(

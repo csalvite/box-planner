@@ -37,6 +37,7 @@ import {
   useCreateBlock,
   useDeleteBlock,
 } from "@/hooks/use-blocks";
+import { useBlockExercises } from "@/hooks/use-exercises";
 
 const categoryColors = {
   "warm-up": "bg-chart-2/20 text-chart-2",
@@ -87,6 +88,24 @@ const itemVariants: Variants = {
     },
   },
 };
+
+function BlockExerciseCount({
+  organizationId,
+  blockId,
+  fallbackCount,
+}: {
+  organizationId: string;
+  blockId: string;
+  fallbackCount: number;
+}) {
+  const exercisesQuery = useBlockExercises(organizationId, blockId);
+
+  if (exercisesQuery.isLoading) {
+    return <span>{fallbackCount || "..."}</span>;
+  }
+
+  return <span>{exercisesQuery.data?.length ?? fallbackCount}</span>;
+}
 
 export function BlocksContent() {
   const { t } = useAppTranslation();
@@ -355,6 +374,12 @@ export function BlocksContent() {
             />
           </motion.div>
 
+          <div className="rounded-lg border border-border/70 bg-card/45 px-4 py-3 text-sm text-muted-foreground">
+            un bloque es una parte reutilizable de una sesion. Dentro puedes
+            anadir ejercicios, descansos y notas para que la duracion se calcule
+            sola.
+          </div>
+
           {blocksQuery.isLoading && (
             <LoadingState
               title="cargando bloques"
@@ -437,7 +462,15 @@ export function BlocksContent() {
                               ejercicios
                             </div>
                             <p className="mt-1 text-sm font-semibold text-foreground">
-                              {block.exercises?.length ?? "-"}
+                              {activeOrganizationId ? (
+                                <BlockExerciseCount
+                                  organizationId={activeOrganizationId}
+                                  blockId={block.id}
+                                  fallbackCount={block.exercises?.length ?? 0}
+                                />
+                              ) : (
+                                block.exercises?.length ?? 0
+                              )}
                             </p>
                           </div>
                         </div>

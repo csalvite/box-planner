@@ -163,6 +163,11 @@ export function TrainingsContent() {
         !trainingsQuery.isLoading &&
         !trainingsQuery.error && (
           <>
+            <div className="rounded-lg border border-border/70 bg-card/45 px-4 py-3 text-sm text-muted-foreground">
+              un entrenamiento combina bloques en orden. Usa la estructura para
+              entender la sesion completa y ajustar que partes la componen.
+            </div>
+
             {deleteTraining.error && (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {deleteTraining.error.message}

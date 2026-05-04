@@ -13,8 +13,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateOrganization } from "@/hooks/use-organizations";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
+import { useCreateOrganization } from "@/hooks/use-organizations";
+import type { OrganizationType } from "@/lib/api/types";
+
+const organizationTypeOptions: Array<{
+  value: OrganizationType;
+  label: string;
+  help: string;
+}> = [
+  {
+    value: "GYM",
+    label: "gimnasio",
+    help: "para boxes, centros deportivos o gimnasios",
+  },
+  {
+    value: "COACH",
+    label: "coach",
+    help: "para entrenadores personales o preparadores",
+  },
+  {
+    value: "TEAM",
+    label: "equipo",
+    help: "para clubes o grupos de trabajo",
+  },
+  {
+    value: "OTHER",
+    label: "otro",
+    help: "para otros tipos de organizacion",
+  },
+];
 
 function makeSlug(value: string) {
   return value
@@ -31,8 +59,11 @@ export function OrganizationOnboarding() {
   const { setActiveOrganizationId } = useActiveOrganization();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [type, setType] = useState("GYM");
+  const [type, setType] = useState<OrganizationType>("GYM");
   const [error, setError] = useState<string | null>(null);
+  const selectedType = organizationTypeOptions.find(
+    (option) => option.value === type,
+  );
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -55,7 +86,7 @@ export function OrganizationOnboarding() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "No se pudo crear la organización.",
+          : "No se pudo crear la organizacion.",
       );
     }
   };
@@ -69,17 +100,17 @@ export function OrganizationOnboarding() {
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              crea tu organización
+              crea tu organizacion
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              necesitas una organización activa para usar Box Planner
+              necesitas una organizacion activa para usar Box Planner
             </p>
           </div>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm"
+          className="space-y-5 rounded-lg border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 ring-1 ring-white/10"
         >
           <div className="space-y-2">
             <Label htmlFor="organization-name">nombre</Label>
@@ -103,16 +134,26 @@ export function OrganizationOnboarding() {
 
           <div className="space-y-2">
             <Label htmlFor="organization-type">tipo</Label>
-            <Select value={type} onValueChange={setType}>
+            <Select
+              value={type}
+              onValueChange={(value) => setType(value as OrganizationType)}
+            >
               <SelectTrigger id="organization-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="GYM">gimnasio</SelectItem>
-                <SelectItem value="CLUB">club</SelectItem>
-                <SelectItem value="PERSONAL">personal</SelectItem>
+                {organizationTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {selectedType ? (
+              <p className="text-xs text-muted-foreground">
+                se enviara {selectedType.value}: {selectedType.help}.
+              </p>
+            ) : null}
           </div>
 
           {error && (
@@ -126,7 +167,7 @@ export function OrganizationOnboarding() {
             className="w-full"
             disabled={createOrganization.isPending}
           >
-            {createOrganization.isPending ? "creando..." : "crear organización"}
+            {createOrganization.isPending ? "creando..." : "crear organizacion"}
           </Button>
         </form>
       </div>

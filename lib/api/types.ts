@@ -9,15 +9,18 @@ export interface Organization {
   id: string;
   name: string;
   slug?: string | null;
+  type?: OrganizationType | string | null;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
 }
 
+export type OrganizationType = "GYM" | "COACH" | "TEAM" | "OTHER";
+
 export interface CreateOrganizationInput {
   name: string;
   slug?: string;
-  type?: string;
+  type?: OrganizationType;
   [key: string]: unknown;
 }
 
@@ -63,6 +66,9 @@ export interface ApiBlock {
   categoryId?: number | null;
   category?: BlockCategory | null;
   exercises?: unknown[];
+  _count?: {
+    exercises?: number;
+  };
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
   [key: string]: unknown;
