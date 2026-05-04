@@ -60,6 +60,16 @@ function normalizeDate(value?: string | Date | null) {
 
 function normalizeBlock(block: ApiBlock): Block {
   const estimatedDurationSec = block.estimatedDurationSec ?? 0;
+  const exercises = Array.isArray(block.exercises)
+    ? block.exercises.map((exercise, index) =>
+        typeof exercise === "object" &&
+        exercise !== null &&
+        "id" in exercise &&
+        typeof exercise.id === "string"
+          ? exercise.id
+          : `${block.id}-exercise-${index}`,
+      )
+    : undefined;
 
   return {
     id: block.id,
@@ -67,7 +77,7 @@ function normalizeBlock(block: ApiBlock): Block {
     category: normalizeCategory(block),
     duration: Math.round(estimatedDurationSec / 60),
     description: block.description ?? undefined,
-    exercises: undefined,
+    exercises,
     createdAt: normalizeDate(block.createdAt),
   };
 }

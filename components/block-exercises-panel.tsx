@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Trash2 } from "lucide-react";
+import { Activity, Clock, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -101,8 +102,22 @@ export function BlockExercisesPanel({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-4 rounded-lg border border-border p-4">
-        <div className="grid gap-3 md:grid-cols-2">
+      <div className="space-y-4 rounded-lg border border-border/80 bg-background/45 p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              nuevo ejercicio
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              combina tiempo, reps y descanso para calcular la duracion.
+            </p>
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Plus className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="exercise-name">nombre</Label>
             <Input
@@ -115,7 +130,7 @@ export function BlockExercisesPanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="exercise-duration">duración seg.</Label>
+            <Label htmlFor="exercise-duration">duracion seg.</Label>
             <Input
               id="exercise-duration"
               type="number"
@@ -188,29 +203,26 @@ export function BlockExercisesPanel({
           onClick={handleCreateExercise}
           disabled={createExercise.isPending}
         >
-          {createExercise.isPending ? "creando..." : "añadir ejercicio"}
+          {createExercise.isPending ? "creando..." : "anadir ejercicio"}
         </Button>
       </div>
 
       {exercisesQuery.isLoading && (
-        <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          cargando ejercicios...
-        </div>
+        <LoadingState
+          title="cargando ejercicios"
+          description="estamos leyendo la estructura actual de este bloque."
+          className="min-h-[180px]"
+        />
       )}
 
       {exercisesQuery.error && (
-        <div className="rounded-lg border border-dashed border-border p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            {exercisesQuery.error.message}
-          </p>
-          <Button
-            className="mt-3"
-            variant="outline"
-            onClick={() => void exercisesQuery.refetch()}
-          >
-            reintentar
-          </Button>
-        </div>
+        <ErrorState
+          title="no pudimos cargar los ejercicios"
+          description={exercisesQuery.error.message}
+          actionLabel="reintentar"
+          onAction={() => void exercisesQuery.refetch()}
+          className="min-h-[180px]"
+        />
       )}
 
       {!exercisesQuery.isLoading && !exercisesQuery.error && (
@@ -224,10 +236,17 @@ export function BlockExercisesPanel({
           {exercises.map((exercise) => (
             <div
               key={exercise.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-border p-4"
+              className="flex items-start justify-between gap-3 rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm"
             >
               <div className="min-w-0 space-y-1">
-                <h4 className="font-medium text-foreground">{exercise.name}</h4>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Activity className="h-3.5 w-3.5" />
+                  </span>
+                  <h4 className="truncate font-medium text-foreground">
+                    {exercise.name}
+                  </h4>
+                </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
@@ -261,9 +280,11 @@ export function BlockExercisesPanel({
           ))}
 
           {exercises.length === 0 && (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              este bloque todavía no tiene ejercicios
-            </div>
+            <EmptyState
+              title="este bloque todavia no tiene ejercicios"
+              description="anade el primer ejercicio para empezar a calcular la duracion del bloque."
+              className="min-h-[190px]"
+            />
           )}
         </div>
       )}

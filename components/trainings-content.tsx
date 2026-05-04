@@ -1,53 +1,62 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import {
+  Blocks,
+  Clock,
+  Dumbbell,
+  Layers,
+  Plus,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { motion } from "framer-motion";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedCard } from "@/components/ui/animated-card";
-import { Plus, Clock, Calendar, Trash2, Edit } from "lucide-react";
-import { motion, type Variants } from "framer-motion";
-import { useAppTranslation } from "@/hooks/use-app-translation";
-import { useActiveOrganization } from "@/components/providers/organization-provider";
+import { Button } from "@/components/ui/button";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TrainingForm } from "@/components/training-form";
 import { TrainingBlocksPanel } from "@/components/training-blocks-panel";
-import type { ApiTraining } from "@/lib/api/trainings";
+import { TrainingForm } from "@/components/training-form";
+import { useActiveOrganization } from "@/components/providers/organization-provider";
+import { useAppTranslation } from "@/hooks/use-app-translation";
 import { useDeleteTraining, useTrainings } from "@/hooks/use-trainings";
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, x: -20 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      type: "spring",
-      stiffness: 300,
-      damping: 24,
-    },
-  },
-};
+import type { ApiTraining } from "@/lib/api/trainings";
 
 function formatMinutes(totalDurationSec: number) {
   return Math.round(totalDurationSec / 60);
 }
 
+function formatTrainingType(trainingType: ApiTraining["trainingType"]) {
+  return String(trainingType).toLowerCase() === "group" ? "grupo" : "personal";
+}
+
+function formatLevel(level?: string | null) {
+  if (!level) {
+    return "sin nivel";
+  }
+
+  const normalizedLevel = level.toLowerCase();
+
+  if (normalizedLevel === "beginner") {
+    return "inicial";
+  }
+
+  if (normalizedLevel === "advanced") {
+    return "avanzado";
+  }
+
+  return "intermedio";
+}
+
 export function TrainingsContent() {
-  const { t, language } = useAppTranslation();
+  const { t } = useAppTranslation();
   const { activeOrganizationId } = useActiveOrganization();
   const trainingsQuery = useTrainings(activeOrganizationId);
   const deleteTraining = useDeleteTraining(activeOrganizationId);
@@ -57,12 +66,17 @@ export function TrainingsContent() {
     null,
   );
 
+  const currentSelectedTraining = selectedTraining
+    ? trainings.find((training) => training.id === selectedTraining.id) ??
+      selectedTraining
+    : null;
+
   return (
     <div className="space-y-6">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.35 }}
         className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
       >
         <div>
@@ -86,70 +100,63 @@ export function TrainingsContent() {
       </motion.div>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{t("dashboard.newTrainingTitle")}</DialogTitle>
+            <DialogDescription>
+              define la sesion y anade bloques existentes en el orden de trabajo.
+            </DialogDescription>
           </DialogHeader>
           <TrainingForm onSuccess={() => setIsCreateOpen(false)} />
         </DialogContent>
       </Dialog>
 
       <Dialog
-        open={!!selectedTraining}
+        open={!!currentSelectedTraining}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedTraining(null);
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{selectedTraining?.title}</DialogTitle>
+            <DialogTitle>{currentSelectedTraining?.title}</DialogTitle>
+            <DialogDescription>
+              revisa la estructura del entrenamiento y ajusta sus bloques.
+            </DialogDescription>
           </DialogHeader>
-          {activeOrganizationId && selectedTraining && (
+          {activeOrganizationId && currentSelectedTraining && (
             <TrainingBlocksPanel
               organizationId={activeOrganizationId}
-              training={selectedTraining}
+              training={currentSelectedTraining}
             />
           )}
         </DialogContent>
       </Dialog>
 
       {!activeOrganizationId && (
-        <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
-          <Plus className="h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-semibold text-foreground">
-            selecciona una organización
-          </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            necesitas una organización activa para gestionar entrenamientos.
-          </p>
-        </div>
+        <EmptyState
+          title="selecciona una organizacion"
+          description="necesitas una organizacion activa para gestionar entrenamientos."
+          icon={Dumbbell}
+        />
       )}
 
       {activeOrganizationId && trainingsQuery.isLoading && (
-        <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground">
-          cargando entrenamientos...
-        </div>
+        <LoadingState
+          title="cargando entrenamientos"
+          description="estamos leyendo las sesiones guardadas en la organizacion."
+        />
       )}
 
       {activeOrganizationId && trainingsQuery.error && (
-        <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
-          <Plus className="h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-semibold text-foreground">
-            no pudimos cargar los entrenamientos
-          </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {trainingsQuery.error.message}
-          </p>
-          <Button
-            className="mt-4"
-            variant="outline"
-            onClick={() => void trainingsQuery.refetch()}
-          >
-            reintentar
-          </Button>
-        </div>
+        <ErrorState
+          title="no pudimos cargar los entrenamientos"
+          description={trainingsQuery.error.message}
+          actionLabel="reintentar"
+          onAction={() => void trainingsQuery.refetch()}
+        />
       )}
 
       {activeOrganizationId &&
@@ -162,66 +169,40 @@ export function TrainingsContent() {
               </p>
             )}
 
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="space-y-4"
-            >
-              {trainings.map((training) => (
-                <motion.div key={training.id} variants={itemVariants}>
-                  <AnimatedCard className="p-6">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div className="flex-1 space-y-2">
-                        <h3 className="text-xl font-semibold text-foreground">
-                          {training.title}
-                        </h3>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {trainings.map((training) => {
+                const blockCount = training.blocks?.length ?? 0;
 
-                        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            <span>
-                              {formatMinutes(training.totalDurationSec)}{" "}
-                              {t("trainings.minutes")}
+                return (
+                  <AnimatedCard
+                    key={training.id}
+                    className="h-full border-border/80 bg-card/70 p-5 shadow-md shadow-black/15"
+                  >
+                    <div className="flex h-full flex-col gap-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/15">
+                              {formatTrainingType(training.trainingType)}
+                            </span>
+                            <span className="rounded-full bg-secondary/80 px-3 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-white/10">
+                              {formatLevel(training.level)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4" />
-                            <span>
-                              {new Date(
-                                training.createdAt ?? Date.now(),
-                              ).toLocaleDateString(
-                                language === "es" ? "es-ES" : "en-US",
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                              {training.blocks?.length ?? 0}{" "}
-                              {t("trainings.blocksCount")}
-                            </span>
-                          </div>
+                          <h3 className="mt-3 text-xl font-semibold leading-tight text-foreground">
+                            {training.title}
+                          </h3>
+                          <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground line-clamp-2">
+                            {training.notes ??
+                              training.description ??
+                              "sin notas"}
+                          </p>
                         </div>
 
-                        {training.notes && (
-                          <p className="text-sm text-muted-foreground">
-                            {training.notes}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="icon"
-                          onClick={() => setSelectedTraining(training)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="bg-transparent text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
                           disabled={
                             deleteTraining.isPending &&
                             deleteTraining.variables === training.id
@@ -233,34 +214,59 @@ export function TrainingsContent() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            duracion
+                          </div>
+                          <p className="mt-1 text-sm font-semibold text-foreground">
+                            {formatMinutes(training.totalDurationSec)} min
+                          </p>
+                        </div>
+                        <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Layers className="h-3.5 w-3.5" />
+                            bloques
+                          </div>
+                          <p className="mt-1 text-sm font-semibold text-foreground">
+                            {blockCount}
+                          </p>
+                        </div>
+                        <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Users className="h-3.5 w-3.5" />
+                            tipo
+                          </div>
+                          <p className="mt-1 text-sm font-semibold text-foreground">
+                            {formatTrainingType(training.trainingType)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        className="mt-auto w-full"
+                        onClick={() => setSelectedTraining(training)}
+                      >
+                        <Blocks className="h-4 w-4" />
+                        gestionar estructura
+                      </Button>
                     </div>
                   </AnimatedCard>
-                </motion.div>
-              ))}
-            </motion.div>
+                );
+              })}
+            </div>
 
             {trainings.length === 0 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center"
-              >
-                <Plus className="h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-semibold text-foreground">
-                  {t("trainings.emptyTitle")}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t("trainings.emptySubtitle")}
-                </p>
-                <AnimatedButton
-                  className="mt-4 gap-2"
-                  onClick={() => setIsCreateOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  {t("trainings.createTraining")}
-                </AnimatedButton>
-              </motion.div>
+              <EmptyState
+                title={t("trainings.emptyTitle")}
+                description={t("trainings.emptySubtitle")}
+                icon={Dumbbell}
+                actionLabel={t("trainings.createTraining")}
+                onAction={() => setIsCreateOpen(true)}
+                className="min-h-[360px]"
+              />
             )}
           </>
         )}

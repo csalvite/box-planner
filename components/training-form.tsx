@@ -4,9 +4,9 @@ import type React from "react";
 import { useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ErrorState, LoadingState } from "@/components/ui/data-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -14,15 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useBoxPlannerStore } from "@/lib/store";
-import type { TrainingLevel, TrainingType } from "@/lib/types";
-import { useAppTranslation } from "@/hooks/use-app-translation";
+import { Textarea } from "@/components/ui/textarea";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
+import { useAppTranslation } from "@/hooks/use-app-translation";
 import { useBlocks } from "@/hooks/use-blocks";
 import {
   useAddBlockToTraining,
   useCreateTraining,
 } from "@/hooks/use-trainings";
+import { useBoxPlannerStore } from "@/lib/store";
+import type { TrainingLevel, TrainingType } from "@/lib/types";
 
 interface TrainingFormProps {
   onSuccess?: () => void;
@@ -74,7 +75,7 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
     event.preventDefault();
 
     if (!activeOrganizationId) {
-      setErrors({ form: "No hay una organización activa." });
+      setErrors({ form: "No hay una organizacion activa." });
       return;
     }
 
@@ -101,7 +102,6 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
         }
       }
 
-      void training;
       resetForm();
       closeModal();
       onSuccess?.();
@@ -116,7 +116,7 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-2">
         <Label htmlFor="title" className="text-foreground">
           {t("trainingForm.title")}{" "}
@@ -141,76 +141,103 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
         )}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="type" className="text-foreground">
-          {t("trainingForm.type")}
-        </Label>
-        <Select
-          value={type}
-          onValueChange={(value) => setType(value as TrainingType)}
-        >
-          <SelectTrigger id="type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="personal">
-              {t("trainingForm.typePersonal")}
-            </SelectItem>
-            <SelectItem value="group">
-              {t("trainingForm.typeGroup")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="type" className="text-foreground">
+            {t("trainingForm.type")}
+          </Label>
+          <Select
+            value={type}
+            onValueChange={(value) => setType(value as TrainingType)}
+          >
+            <SelectTrigger id="type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="personal">
+                {t("trainingForm.typePersonal")}
+              </SelectItem>
+              <SelectItem value="group">
+                {t("trainingForm.typeGroup")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="level" className="text-foreground">
+            {t("trainingForm.level")}
+          </Label>
+          <Select
+            value={level}
+            onValueChange={(value) => setLevel(value as TrainingLevel)}
+          >
+            <SelectTrigger id="level">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="beginner">
+                {t("trainingForm.levelBeginner")}
+              </SelectItem>
+              <SelectItem value="intermediate">
+                {t("trainingForm.levelIntermediate")}
+              </SelectItem>
+              <SelectItem value="advanced">
+                {t("trainingForm.levelAdvanced")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="level" className="text-foreground">
-          {t("trainingForm.level")}
-        </Label>
-        <Select
-          value={level}
-          onValueChange={(value) => setLevel(value as TrainingLevel)}
-        >
-          <SelectTrigger id="level">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="beginner">
-              {t("trainingForm.levelBeginner")}
-            </SelectItem>
-            <SelectItem value="intermediate">
-              {t("trainingForm.levelIntermediate")}
-            </SelectItem>
-            <SelectItem value="advanced">
-              {t("trainingForm.levelAdvanced")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <div className="space-y-3 rounded-lg border border-border/80 bg-background/45 p-4">
+        <div>
+          <Label className="text-foreground">bloques</Label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            puedes anadirlos ahora o gestionarlos despues desde la estructura.
+          </p>
+        </div>
 
-      <div className="space-y-3">
-        <Label className="text-foreground">bloques</Label>
-        <div className="flex gap-2">
+        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
           <Select
             value={selectedBlockId}
             onValueChange={setSelectedBlockId}
             disabled={blocksQuery.isLoading || blocksQuery.isError}
           >
-            <SelectTrigger className="flex-1">
+            <SelectTrigger>
               <SelectValue placeholder="Selecciona un bloque" />
             </SelectTrigger>
             <SelectContent>
               {blocks.map((block) => (
                 <SelectItem key={block.id} value={block.id}>
-                  {block.name}
+                  {block.name} - {block.duration} min
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Button type="button" variant="outline" onClick={addSelectedBlock}>
-            añadir
+            anadir
           </Button>
         </div>
+
+        {blocksQuery.isLoading && (
+          <LoadingState
+            title="cargando bloques"
+            description="podras anadirlos cuando esten disponibles."
+            className="min-h-[140px]"
+          />
+        )}
+
+        {blocksQuery.error && (
+          <ErrorState
+            title="no pudimos cargar los bloques"
+            description={blocksQuery.error.message}
+            actionLabel="reintentar"
+            onAction={() => void blocksQuery.refetch()}
+            className="min-h-[140px]"
+          />
+        )}
+
         {selectedBlockIds.length > 0 && (
           <div className="space-y-2">
             {selectedBlockIds.map((blockId, index) => {
@@ -219,9 +246,11 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
               return (
                 <div
                   key={`${blockId}-${index}`}
-                  className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-2 rounded-md border border-border/80 bg-card/60 px-3 py-2 text-sm"
                 >
-                  <span>{block?.name ?? "bloque"}</span>
+                  <span className="truncate">
+                    {index + 1}. {block?.name ?? "bloque"}
+                  </span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -257,7 +286,7 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
         </p>
       )}
 
-      <div className="flex gap-3 pt-2">
+      <div className="grid gap-3 pt-2 sm:grid-cols-2">
         <Button
           type="button"
           variant="outline"
@@ -265,13 +294,12 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
             closeModal();
             onSuccess?.();
           }}
-          className="flex-1 bg-transparent"
+          className="bg-transparent"
         >
           {t("trainingForm.cancel")}
         </Button>
         <Button
           type="submit"
-          className="flex-1"
           disabled={createTraining.isPending || addBlockToTraining.isPending}
         >
           {createTraining.isPending || addBlockToTraining.isPending

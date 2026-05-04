@@ -4,12 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedCard } from "@/components/ui/animated-card";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Clock, Trash2, Layers } from "lucide-react";
+import { Dumbbell, Plus, Search, Clock, Trash2, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -117,6 +119,9 @@ export function BlocksContent() {
   const filteredBlocks = blocks.filter((block) =>
     block.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const currentSelectedBlock = selectedBlock
+    ? blocks.find((block) => block.id === selectedBlock.id) ?? selectedBlock
+    : null;
 
   const blockCategories = blockCategoriesQuery.data ?? [];
   const selectedCategoryId =
@@ -202,8 +207,12 @@ export function BlocksContent() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{t("blocks.createBlockTitle")}</DialogTitle>
+              <DialogDescription>
+                crea una plantilla base; la duracion se calcula con sus
+                ejercicios.
+              </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="name">{t("blocks.name")}</Label>
                 <Input
@@ -294,7 +303,7 @@ export function BlocksContent() {
       </motion.div>
 
       <Dialog
-        open={!!selectedBlock}
+        open={!!currentSelectedBlock}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedBlock(null);
@@ -303,12 +312,15 @@ export function BlocksContent() {
       >
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedBlock?.name}</DialogTitle>
+            <DialogTitle>{currentSelectedBlock?.name}</DialogTitle>
+            <DialogDescription>
+              gestiona ejercicios, descansos y la duracion calculada del bloque.
+            </DialogDescription>
           </DialogHeader>
-          {activeOrganizationId && selectedBlock && (
+          {activeOrganizationId && currentSelectedBlock && (
             <BlockExercisesPanel
               organizationId={activeOrganizationId}
-              blockId={selectedBlock.id}
+              blockId={currentSelectedBlock.id}
             />
           )}
         </DialogContent>
@@ -344,28 +356,19 @@ export function BlocksContent() {
           </motion.div>
 
           {blocksQuery.isLoading && (
-            <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground">
-              cargando bloques...
-            </div>
+            <LoadingState
+              title="cargando bloques"
+              description="estamos preparando la biblioteca de la organizacion."
+            />
           )}
 
           {blocksQuery.error && (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
-              <Layers className="h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
-                no pudimos cargar los bloques
-              </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {blocksQuery.error.message}
-              </p>
-              <Button
-                className="mt-4"
-                variant="outline"
-                onClick={() => void blocksQuery.refetch()}
-              >
-                reintentar
-              </Button>
-            </div>
+            <ErrorState
+              title="no pudimos cargar los bloques"
+              description={blocksQuery.error.message}
+              actionLabel="reintentar"
+              onAction={() => void blocksQuery.refetch()}
+            />
           )}
 
           {!blocksQuery.isLoading && !blocksQuery.error && (
@@ -384,12 +387,12 @@ export function BlocksContent() {
               >
                 {filteredBlocks.map((block) => (
                   <motion.div key={block.id} variants={itemVariants}>
-                    <AnimatedCard className="p-6">
-                      <div className="space-y-4">
+                    <AnimatedCard className="h-full border-border/80 bg-card/70 p-5 shadow-md shadow-black/15">
+                      <div className="flex h-full flex-col space-y-5">
                         <div className="flex items-start justify-between">
                           <span
                             className={cn(
-                              "rounded-full px-3 py-1 text-xs font-medium",
+                              "rounded-full px-3 py-1 text-xs font-medium ring-1 ring-white/10",
                               categoryColors[block.category],
                             )}
                           >
@@ -410,27 +413,40 @@ export function BlocksContent() {
                         </div>
 
                         <div>
-                          <h3 className="font-semibold text-foreground">
+                          <h3 className="text-lg font-semibold leading-tight text-foreground">
                             {block.name}
                           </h3>
-                          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                            {block.description}
+                          <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground line-clamp-2">
+                            {block.description || "sin descripcion"}
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          <span>
-                            {block.duration} {t("blocks.minutes")}
-                          </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Clock className="h-3.5 w-3.5" />
+                              duracion
+                            </div>
+                            <p className="mt-1 text-sm font-semibold text-foreground">
+                              {block.duration} {t("blocks.minutes")}
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Dumbbell className="h-3.5 w-3.5" />
+                              ejercicios
+                            </div>
+                            <p className="mt-1 text-sm font-semibold text-foreground">
+                              {block.exercises?.length ?? "-"}
+                            </p>
+                          </div>
                         </div>
 
                         <Button
-                          variant="outline"
-                          className="w-full"
+                          className="mt-auto w-full"
                           onClick={() => setSelectedBlock(block)}
                         >
-                          ejercicios
+                          gestionar ejercicios
                         </Button>
                       </div>
                     </AnimatedCard>
@@ -439,22 +455,16 @@ export function BlocksContent() {
               </motion.div>
 
               {filteredBlocks.length === 0 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.2, duration: 0.5 }}
-                  className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center"
-                >
-                  <Layers className="h-12 w-12 text-muted-foreground" />
-                  <h3 className="mt-4 text-lg font-semibold text-foreground">
-                    {t("blocks.emptyTitle")}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {searchQuery
+                <EmptyState
+                  title={t("blocks.emptyTitle")}
+                  description={
+                    searchQuery
                       ? t("blocks.emptySearch")
-                      : t("blocks.emptyDefault")}
-                  </p>
-                </motion.div>
+                      : t("blocks.emptyDefault")
+                  }
+                  icon={Layers}
+                  className="min-h-[360px]"
+                />
               )}
             </>
           )}
