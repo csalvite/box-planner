@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "blocks": "Bloques",
+    "trainings": "Entrenamientos",
+    "settings": "Ajustes"
+  },
+  "language": {
+    "switch": "Cambiar idioma",
+    "spanish": "Español",
+    "english": "Inglés"
+  },
+  "dashboard": {
+    "title": "Bienvenido a Box Planner",
+    "subtitle": "Planifica, entrena y supérate",
+    "createTraining": "Crear entrenamiento",
+    "thisMonth": "Este mes",
+    "trainings": "entrenamientos",
+    "totalTime": "Tiempo total",
+    "trainingTime": "de entrenamiento",
+    "currentStreak": "Racha actual",
+    "consecutiveDays": "días consecutivos",
+    "weeklyGoal": "Objetivo semanal",
+    "minutes": "minutos",
+    "recentBlocks": "Bloques recientes",
+    "viewAll": "Ver todos",
+    "newTrainingTitle": "Crear nuevo entrenamiento"
+  },
+  "blocks": {
+    "title": "Bloques de entrenamiento",
+    "subtitle": "Gestiona tus bloques reutilizables",
+    "newBlock": "Nuevo bloque",
+    "createBlockTitle": "Crear nuevo bloque",
+    "name": "Nombre",
+    "namePlaceholder": "ej: Trabajo de jab-cross",
+    "category": "Categoría",
+    "durationMinutes": "Duración (minutos)",
+    "description": "Descripción",
+    "descriptionPlaceholder": "Describe el bloque...",
+    "createBlock": "Crear bloque",
+    "searchPlaceholder": "Buscar bloques...",
+    "minutes": "minutos",
+    "emptyTitle": "No se encontraron bloques",
+    "emptySearch": "Intenta con otro término de búsqueda",
+    "emptyDefault": "Comienza creando tu primer bloque de entrenamiento"
+  },
+  "blockCategories": {
+    "warmUp": "Calentamiento",
+    "technique": "Técnica",
+    "cardio": "Cardio",
+    "strength": "Fuerza",
+    "cooldown": "Enfriamiento",
+    "sparring": "Sparring"
+  },
+  "trainings": {
+    "title": "Entrenamientos",
+    "subtitle": "Gestiona tus sesiones de entrenamiento",
+    "newTraining": "Nuevo entrenamiento",
+    "minutes": "minutos",
+    "blocksCount": "bloques",
+    "emptyTitle": "No tienes entrenamientos",
+    "emptySubtitle": "Comienza creando tu primer entrenamiento",
+    "createTraining": "Crear entrenamiento"
+  },
+  "trainingForm": {
+    "title": "Título",
+    "titleRequired": "El título es obligatorio",
+    "titlePlaceholder": "Ej: Entrenamiento de resistencia",
+    "type": "Tipo",
+    "typePersonal": "Personal",
+    "typeGroup": "Grupal",
+    "level": "Nivel",
+    "levelBeginner": "Principiante",
+    "levelIntermediate": "Intermedio",
+    "levelAdvanced": "Avanzado",
+    "notesOptional": "Notas (opcional)",
+    "notesPlaceholder": "Agrega notas adicionales sobre el entrenamiento...",
+    "cancel": "Cancelar",
+    "create": "Crear"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "subtitle": "Personaliza tu experiencia",
+    "profile": "Perfil",
+    "accountInfo": "Información de tu cuenta",
+    "name": "Nombre",
+    "namePlaceholder": "Tu nombre",
+    "email": "Email",
+    "saveChanges": "Guardar cambios",
+    "weeklyGoal": "Objetivo semanal",
+    "weeklyGoalDescription": "Minutos de entrenamiento por semana",
+    "minutesPerWeek": "Minutos por semana",
+    "updateGoal": "Actualizar objetivo",
+    "theme": "Tema",
+    "darkMode": "Actualmente en modo oscuro"
+  },
+  "modal": {
+    "close": "Cerrar modal"
+  }
+}

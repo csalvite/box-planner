@@ -1,0 +1,35 @@
+{
+  "window.title": "🥊 Box Planner UI — ${rootName}${separator}${activeEditorShort}",
+
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#1e40af",
+    "titleBar.inactiveBackground": "#1e3a8a",
+    "titleBar.activeForeground": "#ffffff",
+    "titleBar.inactiveForeground": "#e5e7eb",
+    "statusBar.background": "#1e40af",
+    "statusBar.noFolderBackground": "#1e40af",
+    "statusBar.foreground": "#ffffff"
+  },
+
+  // Formato de nombres de pestañas (para ver mejor los ficheros)
+  "workbench.editor.labelFormat": "short",
+
+  // Cosas típicas para proyectos Node/Nest
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.turbo": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true
+  },
+
+  // TypeScript / JS: usar TS del workspace
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // Formato
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode"
+}

@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "home": "Home",
+    "blocks": "Blocks",
+    "trainings": "Trainings",
+    "settings": "Settings"
+  },
+  "language": {
+    "switch": "Change language",
+    "spanish": "Spanish",
+    "english": "English"
+  },
+  "dashboard": {
+    "title": "Welcome to Box Planner",
+    "subtitle": "Plan, train and improve",
+    "createTraining": "Create training",
+    "thisMonth": "This month",
+    "trainings": "trainings",
+    "totalTime": "Total time",
+    "trainingTime": "of training",
+    "currentStreak": "Current streak",
+    "consecutiveDays": "consecutive days",
+    "weeklyGoal": "Weekly goal",
+    "minutes": "minutes",
+    "recentBlocks": "Recent blocks",
+    "viewAll": "View all",
+    "newTrainingTitle": "Create new training"
+  },
+  "blocks": {
+    "title": "Training blocks",
+    "subtitle": "Manage your reusable blocks",
+    "newBlock": "New block",
+    "createBlockTitle": "Create new block",
+    "name": "Name",
+    "namePlaceholder": "e.g. Jab-cross drill",
+    "category": "Category",
+    "durationMinutes": "Duration (minutes)",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe the block...",
+    "createBlock": "Create block",
+    "searchPlaceholder": "Search blocks...",
+    "minutes": "minutes",
+    "emptyTitle": "No blocks found",
+    "emptySearch": "Try a different search term",
+    "emptyDefault": "Start by creating your first training block"
+  },
+  "blockCategories": {
+    "warmUp": "Warm-up",
+    "technique": "Technique",
+    "cardio": "Cardio",
+    "strength": "Strength",
+    "cooldown": "Cooldown",
+    "sparring": "Sparring"
+  },
+  "trainings": {
+    "title": "Trainings",
+    "subtitle": "Manage your training sessions",
+    "newTraining": "New training",
+    "minutes": "minutes",
+    "blocksCount": "blocks",
+    "emptyTitle": "You have no trainings",
+    "emptySubtitle": "Start by creating your first training",
+    "createTraining": "Create training"
+  },
+  "trainingForm": {
+    "title": "Title",
+    "titleRequired": "Title is required",
+    "titlePlaceholder": "e.g. Endurance training",
+    "type": "Type",
+    "typePersonal": "Personal",
+    "typeGroup": "Group",
+    "level": "Level",
+    "levelBeginner": "Beginner",
+    "levelIntermediate": "Intermediate",
+    "levelAdvanced": "Advanced",
+    "notesOptional": "Notes (optional)",
+    "notesPlaceholder": "Add extra notes about the training...",
+    "cancel": "Cancel",
+    "create": "Create"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Customize your experience",
+    "profile": "Profile",
+    "accountInfo": "Your account information",
+    "name": "Name",
+    "namePlaceholder": "Your name",
+    "email": "Email",
+    "saveChanges": "Save changes",
+    "weeklyGoal": "Weekly goal",
+    "weeklyGoalDescription": "Training minutes per week",
+    "minutesPerWeek": "Minutes per week",
+    "updateGoal": "Update goal",
+    "theme": "Theme",
+    "darkMode": "Currently in dark mode"
+  },
+  "modal": {
+    "close": "Close modal"
+  }
+}
