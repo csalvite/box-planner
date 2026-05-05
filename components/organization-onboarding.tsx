@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,11 +76,19 @@ export function OrganizationOnboarding() {
     }
 
     try {
-      const organization = await createOrganization.mutateAsync({
+      const createPromise = createOrganization.mutateAsync({
         name: name.trim(),
         slug: slug.trim() || makeSlug(name),
         type,
       });
+
+      toast.promise(createPromise, {
+        loading: "creando organizacion...",
+        success: "organizacion creada",
+        error: "no se pudo crear la organizacion",
+      });
+
+      const organization = await createPromise;
 
       setActiveOrganizationId(organization.id);
     } catch (nextError) {

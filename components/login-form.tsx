@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { CheckCircle2, MailCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -72,57 +73,101 @@ export function LoginForm() {
 
     if (!supabase) {
       setError("Faltan las variables publicas de Supabase.");
+      toast.error("no se pudo iniciar la autenticacion");
       return;
     }
 
     if (mode === "register" && password !== confirmPassword) {
       setError("Las contrasenas no coinciden.");
+      toast.error("las contrasenas no coinciden");
       return;
     }
 
     setSubmitting(true);
 
     if (mode === "login") {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const signInPromise = supabase.auth
+        .signInWithPassword({
+          email,
+          password,
+        })
+        .then(({ error: signInError }) => {
+          if (signInError) {
+            throw new Error(getAuthErrorMessage(signInError.message));
+          }
+        });
+
+      toast.promise(signInPromise, {
+        loading: "entrando...",
+        success: "sesion iniciada",
+        error: (nextError) =>
+          nextError instanceof Error
+            ? nextError.message
+            : "no se pudo iniciar sesion",
       });
 
-      setSubmitting(false);
+      try {
+        await signInPromise;
+        router.replace("/");
+      } catch (nextError) {
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "No se pudo iniciar sesion.",
+        );
+      } finally {
+        setSubmitting(false);
+      }
 
-      if (signInError) {
-        setError(getAuthErrorMessage(signInError.message));
+      return;
+    }
+
+    const signUpPromise = supabase.auth
+      .signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      .then(({ data, error: signUpError }) => {
+        if (signUpError) {
+          throw new Error(getAuthErrorMessage(signUpError.message));
+        }
+
+        return data;
+      });
+
+    toast.promise(signUpPromise, {
+      loading: "creando cuenta...",
+      success: "cuenta creada",
+      error: (nextError) =>
+        nextError instanceof Error
+          ? nextError.message
+          : "no se pudo crear la cuenta",
+    });
+
+    try {
+      const data = await signUpPromise;
+
+      if (data.session) {
+        router.replace("/");
         return;
       }
 
-      router.replace("/");
-      return;
+      setNotice(
+        "Cuenta creada. Revisa tu correo y confirma el email antes de iniciar sesion.",
+      );
+      setMode("login");
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "No se pudo crear la cuenta.",
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    setSubmitting(false);
-
-    if (signUpError) {
-      setError(getAuthErrorMessage(signUpError.message));
-      return;
-    }
-
-    if (data.session) {
-      router.replace("/");
-      return;
-    }
-
-    setNotice(
-      "Cuenta creada. Revisa tu correo y confirma el email antes de iniciar sesion.",
-    );
-    setMode("login");
   };
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   Blocks,
   Clock,
@@ -71,6 +72,22 @@ export function TrainingsContent() {
       selectedTraining
     : null;
 
+  const handleDeleteTraining = async (trainingId: string) => {
+    const deletePromise = deleteTraining.mutateAsync(trainingId);
+
+    toast.promise(deletePromise, {
+      loading: "borrando entrenamiento...",
+      success: "entrenamiento borrado",
+      error: "no se pudo borrar el entrenamiento",
+    });
+
+    try {
+      await deletePromise;
+    } catch {
+      // react query keeps the detailed error for the inline state
+    }
+  };
+
   return (
     <div className="space-y-6">
       <motion.div
@@ -119,7 +136,7 @@ export function TrainingsContent() {
           }
         }}
       >
-        <DialogContent className="max-h-[94dvh] max-w-[min(1120px,calc(100%-1rem))] p-4 sm:p-6">
+        <DialogContent className="h-[100dvh] max-h-[100dvh] max-w-full rounded-none border-0 p-4 sm:h-auto sm:max-h-[94dvh] sm:max-w-[min(1120px,calc(100%-1.5rem))] sm:rounded-lg sm:border sm:p-6">
           <DialogHeader>
             <DialogTitle>{currentSelectedTraining?.title}</DialogTitle>
             <DialogDescription>
@@ -213,7 +230,7 @@ export function TrainingsContent() {
                             deleteTraining.variables === training.id
                           }
                           onClick={() =>
-                            void deleteTraining.mutateAsync(training.id)
+                            void handleDeleteTraining(training.id)
                           }
                         >
                           <Trash2 className="h-4 w-4" />

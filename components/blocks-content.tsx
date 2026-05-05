@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedCard } from "@/components/ui/animated-card";
@@ -190,12 +191,20 @@ export function BlocksContent() {
 
     if (newBlock.name.trim()) {
       try {
-        await createBlock.mutateAsync({
+        const createPromise = createBlock.mutateAsync({
           ...newBlock,
           name: newBlock.name.trim(),
           categoryId: selectedCategoryId,
           description: newBlock.description?.trim() || undefined,
         });
+
+        toast.promise(createPromise, {
+          loading: "creando bloque...",
+          success: "bloque creado",
+          error: "no se pudo crear el bloque",
+        });
+
+        await createPromise;
         setNewBlock({
           name: "",
           categoryId: undefined,
@@ -215,7 +224,19 @@ export function BlocksContent() {
       return;
     }
 
-    await deleteBlock.mutateAsync(blockId);
+    try {
+      const deletePromise = deleteBlock.mutateAsync(blockId);
+
+      toast.promise(deletePromise, {
+        loading: "borrando bloque...",
+        success: "bloque borrado",
+        error: "no se pudo borrar el bloque",
+      });
+
+      await deletePromise;
+    } catch {
+      // react query keeps the detailed error for the inline state
+    }
   };
 
   return (

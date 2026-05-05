@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Activity, Clock, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
@@ -84,7 +85,7 @@ export function BlockExercisesPanel({
     }
 
     try {
-      await createExercise.mutateAsync({
+      const createPromise = createExercise.mutateAsync({
         name: form.name.trim(),
         durationSec: optionalNumber(form.durationSec, 1),
         reps: optionalNumber(form.reps, 1),
@@ -92,6 +93,14 @@ export function BlockExercisesPanel({
         targetArea: form.targetArea.trim() || undefined,
         notes: form.notes.trim() || undefined,
       });
+
+      toast.promise(createPromise, {
+        loading: "anadiendo ejercicio...",
+        success: "ejercicio anadido",
+        error: "no se pudo anadir el ejercicio",
+      });
+
+      await createPromise;
       setForm(initialExerciseForm);
     } catch (error) {
       setFormError(
@@ -272,7 +281,17 @@ export function BlockExercisesPanel({
                   deleteExercise.isPending &&
                   deleteExercise.variables === exercise.id
                 }
-                onClick={() => void deleteExercise.mutateAsync(exercise.id)}
+                onClick={() => {
+                  const deletePromise = deleteExercise.mutateAsync(exercise.id);
+
+                  toast.promise(deletePromise, {
+                    loading: "borrando ejercicio...",
+                    success: "ejercicio borrado",
+                    error: "no se pudo borrar el ejercicio",
+                  });
+
+                  void deletePromise.catch(() => undefined);
+                }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

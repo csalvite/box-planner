@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   Blocks,
@@ -352,7 +353,7 @@ function IncludedExercisesList({ exercises }: { exercises: BlockExercise[] }) {
   if (exercises.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-background/35 px-3 py-3 text-xs text-muted-foreground">
-        sin ejercicios cargados
+        sin ejercicios cargados; puedes completarlos desde la vista de bloques
       </div>
     );
   }
@@ -396,7 +397,7 @@ function FetchedBlockExercises({
   if (exercises.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-background/35 px-3 py-3 text-xs text-muted-foreground">
-        sin ejercicios cargados
+        sin ejercicios cargados; puedes completarlos desde la vista de bloques
       </div>
     );
   }
@@ -451,48 +452,53 @@ function TrainingBlockCard({
   const durationMin = formatBlockMinutes(trainingBlock, localBlock);
 
   return (
-    <article className="relative rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm md:p-5">
-      <div className="grid gap-4 md:grid-cols-[auto_1fr_auto] md:items-start">
-        <div className="flex items-center gap-3 md:flex-col">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border/70 bg-background/70 text-sm font-semibold text-foreground">
+    <article className="relative overflow-hidden rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm md:p-5">
+      <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-start">
+        <div className="flex items-center gap-3 sm:flex-col">
+          <span className="flex h-11 w-11 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-sm font-semibold text-primary">
             {index + 1}
           </span>
-          <span className="hidden h-full min-h-12 w-px bg-border/70 md:block" />
+          <span className="hidden h-full min-h-12 w-px bg-border/70 sm:block" />
         </div>
 
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-semibold leading-tight text-foreground">
-                {title}
-              </h3>
-              {category ? (
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-white/10",
-                    categoryColors[category],
-                  )}
-                >
-                  {categoryLabels[category]}
-                </span>
-              ) : null}
-            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold leading-tight text-foreground">
+                    {title}
+                  </h3>
+                  {category ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-white/10",
+                        categoryColors[category],
+                      )}
+                    >
+                      {categoryLabels[category]}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Layers className="h-3.5 w-3.5" />
+                    parte {trainingBlock.orderIndex + 1}
+                  </span>
+                  {trainingBlock.customDurationSec ? (
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      duracion ajustada
+                    </span>
+                  ) : null}
+                </div>
+              </div>
 
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                {durationMin} min
-              </span>
-              <span className="flex items-center gap-1">
-                <Layers className="h-3.5 w-3.5" />
-                posicion {trainingBlock.orderIndex + 1}
-              </span>
-              {trainingBlock.customDurationSec ? (
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  duracion ajustada
-                </span>
-              ) : null}
+              <div className="flex w-fit items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-primary">
+                <Clock className="h-4 w-4" />
+                <span className="text-base font-semibold">{durationMin}</span>
+                <span className="text-xs font-medium">min</span>
+              </div>
             </div>
 
             {description ? (
@@ -519,7 +525,7 @@ function TrainingBlockCard({
         <Button
           variant="ghost"
           size="icon-lg"
-          className="justify-self-end text-muted-foreground hover:text-destructive"
+          className="justify-self-end text-muted-foreground hover:text-destructive sm:mt-0"
           disabled={isRemoving}
           onClick={onRemove}
         >
@@ -556,14 +562,23 @@ export function TrainingDetailView({
 
     if (!selectedBlockId) {
       setError("Selecciona un bloque.");
+      toast.error("elige un bloque para anadirlo");
       return;
     }
 
     try {
-      await addBlockToTraining.mutateAsync({
+      const addPromise = addBlockToTraining.mutateAsync({
         blockId: selectedBlockId,
         orderIndex: trainingBlocks.length,
       });
+
+      toast.promise(addPromise, {
+        loading: "anadiendo bloque...",
+        success: "bloque anadido al entrenamiento",
+        error: "no se pudo anadir el bloque",
+      });
+
+      await addPromise;
       setSelectedBlockId("");
     } catch (nextError) {
       setError(
@@ -571,6 +586,22 @@ export function TrainingDetailView({
           ? nextError.message
           : "No se pudo anadir el bloque.",
       );
+    }
+  };
+
+  const handleRemoveBlock = async (trainingBlockId: string) => {
+    const removePromise = removeBlockFromTraining.mutateAsync(trainingBlockId);
+
+    toast.promise(removePromise, {
+      loading: "quitando bloque...",
+      success: "bloque quitado del entrenamiento",
+      error: "no se pudo quitar el bloque",
+    });
+
+    try {
+      await removePromise;
+    } catch {
+      // react query keeps the detailed error for the inline state
     }
   };
 
@@ -637,9 +668,7 @@ export function TrainingDetailView({
                     removeBlockFromTraining.isPending &&
                     removeBlockFromTraining.variables === trainingBlock.id
                   }
-                  onRemove={() =>
-                    void removeBlockFromTraining.mutateAsync(trainingBlock.id)
-                  }
+                  onRemove={() => void handleRemoveBlock(trainingBlock.id)}
                 />
               );
             })}

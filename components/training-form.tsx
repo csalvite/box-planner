@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, LoadingState } from "@/components/ui/data-state";
@@ -85,22 +86,36 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
     }
 
     try {
-      const training = await createTraining.mutateAsync({
-        title: title.trim(),
-        trainingType: type,
-        level,
-        notes: notes.trim() || undefined,
+      const createFlow = async () => {
+        const training = await createTraining.mutateAsync({
+          title: title.trim(),
+          trainingType: type,
+          level,
+          notes: notes.trim() || undefined,
+        });
+
+        if (selectedBlockIds.length > 0) {
+          for (const [index, blockId] of selectedBlockIds.entries()) {
+            await addBlockToTraining.mutateAsync({
+              trainingId: training.id,
+              blockId,
+              orderIndex: index,
+            });
+          }
+        }
+
+        return training;
+      };
+
+      const createPromise = createFlow();
+
+      toast.promise(createPromise, {
+        loading: "creando entrenamiento...",
+        success: "entrenamiento creado",
+        error: "no se pudo crear el entrenamiento",
       });
 
-      if (selectedBlockIds.length > 0) {
-        for (const [index, blockId] of selectedBlockIds.entries()) {
-          await addBlockToTraining.mutateAsync({
-            trainingId: training.id,
-            blockId,
-            orderIndex: index,
-          });
-        }
-      }
+      await createPromise;
 
       resetForm();
       closeModal();
