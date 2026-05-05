@@ -1,6 +1,7 @@
 'use client';
 
 import { Card } from '@/components/ui/card';
+import { LoadingState } from '@/components/ui/data-state';
 import { AnimatedButton } from '@/components/ui/animated-button';
 import { AnimatedCard } from '@/components/ui/animated-card';
 import { Progress } from '@/components/ui/progress';
@@ -11,6 +12,9 @@ import { motion, type Variants } from 'framer-motion';
 import { AppModal } from '@/components/app-modal';
 import { TrainingForm } from '@/components/training-form';
 import { useAppTranslation } from '@/hooks/use-app-translation';
+import { useActiveOrganization } from '@/components/providers/organization-provider';
+import { StudentDashboardContent } from '@/components/student-dashboard-content';
+import { isViewerOrganization } from '@/lib/organization-role';
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -47,9 +51,24 @@ const categoryLabelKeys = {
 export function DashboardContent() {
   const { stats, blocks, openModal } = useBoxPlannerStore();
   const { t } = useAppTranslation();
+  const { activeOrganization, loading } = useActiveOrganization();
 
   const progressPercentage =
     (stats.weeklyProgressMinutes / stats.weeklyGoalMinutes) * 100;
+
+  if (loading || !activeOrganization) {
+    return (
+      <LoadingState
+        title="cargando inicio"
+        description="estamos preparando tu organizacion activa."
+        className="min-h-[420px]"
+      />
+    );
+  }
+
+  if (isViewerOrganization(activeOrganization)) {
+    return <StudentDashboardContent />;
+  }
 
   return (
     <>

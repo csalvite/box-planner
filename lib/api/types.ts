@@ -10,12 +10,22 @@ export interface Organization {
   name: string;
   slug?: string | null;
   type?: OrganizationType | string | null;
+  role?: OrganizationRole | string | null;
+  membership?: OrganizationMembership | null;
+  member?: OrganizationMembership | null;
+  organizationUser?: OrganizationMembership | null;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
 }
 
 export type OrganizationType = "GYM" | "COACH" | "TEAM" | "OTHER";
+export type OrganizationRole = "OWNER" | "ADMIN" | "COACH" | "VIEWER";
+
+export interface OrganizationMembership {
+  role?: OrganizationRole | string | null;
+  [key: string]: unknown;
+}
 
 export interface CreateOrganizationInput {
   name: string;
