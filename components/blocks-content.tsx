@@ -96,15 +96,36 @@ function BlockExerciseCount({
 }: {
   organizationId: string;
   blockId: string;
-  fallbackCount: number;
+  fallbackCount?: number;
 }) {
   const exercisesQuery = useBlockExercises(organizationId, blockId);
 
   if (exercisesQuery.isLoading) {
-    return <span>{fallbackCount || "..."}</span>;
+    return <span>{fallbackCount ?? "..."}</span>;
   }
 
-  return <span>{exercisesQuery.data?.length ?? fallbackCount}</span>;
+  return <span>{exercisesQuery.data?.length ?? fallbackCount ?? "-"}</span>;
+}
+
+function BlockExerciseCountValue({
+  block,
+  organizationId,
+}: {
+  block: Block;
+  organizationId: string;
+}) {
+  // backend should provide _count.exercises; fallback used if missing
+  if (block._count?.exercises !== undefined) {
+    return <span>{block._count.exercises}</span>;
+  }
+
+  return (
+    <BlockExerciseCount
+      organizationId={organizationId}
+      blockId={block.id}
+      fallbackCount={block.exercises?.length}
+    />
+  );
 }
 
 export function BlocksContent() {
@@ -463,13 +484,14 @@ export function BlocksContent() {
                             </div>
                             <p className="mt-1 text-sm font-semibold text-foreground">
                               {activeOrganizationId ? (
-                                <BlockExerciseCount
+                                <BlockExerciseCountValue
+                                  block={block}
                                   organizationId={activeOrganizationId}
-                                  blockId={block.id}
-                                  fallbackCount={block.exercises?.length ?? 0}
                                 />
                               ) : (
-                                block.exercises?.length ?? 0
+                                block._count?.exercises ??
+                                block.exercises?.length ??
+                                "-"
                               )}
                             </p>
                           </div>

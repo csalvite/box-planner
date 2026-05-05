@@ -69,10 +69,11 @@ function normalizeBlock(block: ApiBlock): Block {
           ? exercise.id
           : `${block.id}-exercise-${index}`,
       )
-    : Array.from(
-        { length: block._count?.exercises ?? 0 },
-        (_item, index) => `${block.id}-exercise-${index}`,
-      );
+    : undefined;
+  const exerciseCount =
+    typeof block._count?.exercises === "number"
+      ? { exercises: block._count.exercises }
+      : undefined;
 
   return {
     id: block.id,
@@ -81,6 +82,7 @@ function normalizeBlock(block: ApiBlock): Block {
     duration: Math.round(estimatedDurationSec / 60),
     description: block.description ?? undefined,
     exercises,
+    _count: exerciseCount,
     createdAt: normalizeDate(block.createdAt),
   };
 }

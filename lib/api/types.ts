@@ -67,7 +67,7 @@ export interface ApiBlock {
   category?: BlockCategory | null;
   exercises?: unknown[];
   _count?: {
-    exercises?: number;
+    exercises: number;
   };
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;

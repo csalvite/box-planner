@@ -5,6 +5,9 @@ export interface Block {
   duration: number // in minutes
   description?: string
   exercises?: string[]
+  _count?: {
+    exercises: number
+  }
   createdAt: Date
 }
 
