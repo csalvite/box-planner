@@ -14,3 +14,9 @@ export function getOrganizationRole(organization?: Organization | null) {
 export function isViewerOrganization(organization?: Organization | null) {
   return getOrganizationRole(organization) === "VIEWER";
 }
+
+export function isStaffOrganization(organization?: Organization | null) {
+  const role = getOrganizationRole(organization);
+
+  return role === "OWNER" || role === "ADMIN" || role === "COACH";
+}

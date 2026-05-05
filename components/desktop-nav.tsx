@@ -2,23 +2,35 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Layers, Dumbbell, Settings } from "lucide-react"
+import { Home, Layers, Dumbbell, Settings, CalendarDays } from "lucide-react"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { LogoutButton } from "@/components/logout-button"
 import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
 import { useAppTranslation } from "@/hooks/use-app-translation"
 import { cn } from "@/lib/utils"
+import { useActiveOrganization } from "@/components/providers/organization-provider"
+import { isStaffOrganization } from "@/lib/organization-role"
 
 const navItems = [
   { href: "/", labelKey: "nav.home", icon: Home },
   { href: "/blocks", labelKey: "nav.blocks", icon: Layers },
   { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
+  {
+    href: "/classes",
+    labelKey: "nav.classes",
+    icon: CalendarDays,
+    staffOnly: true,
+  },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ]
 
 export function DesktopNav() {
   const pathname = usePathname()
   const { t } = useAppTranslation()
+  const { activeOrganization } = useActiveOrganization()
+  const visibleNavItems = navItems.filter(
+    (item) => !item.staffOnly || isStaffOrganization(activeOrganization),
+  )
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-border bg-card md:block">
@@ -31,7 +43,7 @@ export function DesktopNav() {
         </div>
 
         <nav className="flex-1 space-y-1 p-4">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
 

@@ -2,24 +2,36 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Layers, Dumbbell, Settings } from "lucide-react"
+import { Home, Layers, Dumbbell, Settings, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { LogoutButton } from "@/components/logout-button"
 import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
 import { useAppTranslation } from "@/hooks/use-app-translation"
+import { useActiveOrganization } from "@/components/providers/organization-provider"
+import { isStaffOrganization } from "@/lib/organization-role"
 
 const navItems = [
   { href: "/", labelKey: "nav.home", icon: Home },
   { href: "/blocks", labelKey: "nav.blocks", icon: Layers },
   { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
+  {
+    href: "/classes",
+    labelKey: "nav.classes",
+    icon: CalendarDays,
+    staffOnly: true,
+  },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ]
 
 export function MobileNav() {
   const pathname = usePathname()
   const { t } = useAppTranslation()
+  const { activeOrganization } = useActiveOrganization()
+  const visibleNavItems = navItems.filter(
+    (item) => !item.staffOnly || isStaffOrganization(activeOrganization),
+  )
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card md:hidden">
@@ -31,7 +43,7 @@ export function MobileNav() {
         </div>
       </div>
       <div className="flex items-center justify-around">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
 
@@ -40,7 +52,7 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-4 py-3 text-xs transition-colors",
+                "flex min-w-0 flex-1 flex-col items-center gap-1 px-2 py-3 text-xs transition-colors",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
               >
