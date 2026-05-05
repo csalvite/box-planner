@@ -4,7 +4,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   AlertCircle,
-  Blocks,
   CheckCircle2,
   Clock,
   Dumbbell,
@@ -205,7 +204,7 @@ function TrainingSummary({
           label="duracion"
           value={`${formatMinutes(training.totalDurationSec)} min`}
         />
-        <StatItem icon={Layers} label="bloques" value={blockCount} />
+        <StatItem icon={Layers} label="partes" value={blockCount} />
         <StatItem
           icon={Users}
           label="tipo"
@@ -274,10 +273,10 @@ function AddBlockPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">
-            sumar bloque a la clase
+            sumar parte a la clase
           </h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            el bloque se anade al final de la secuencia.
+            la parte se anade al final de la secuencia.
           </p>
         </div>
         <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -286,14 +285,14 @@ function AddBlockPanel({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="training-block-select">bloque</Label>
+        <Label htmlFor="training-block-select">parte de la clase</Label>
         <Select
           value={selectedBlockId}
           onValueChange={onSelectedBlockChange}
           disabled={blocksQuery.isLoading || blocksQuery.isError}
         >
           <SelectTrigger id="training-block-select" className="h-11 w-full">
-            <SelectValue placeholder="elige un bloque preparado" />
+            <SelectValue placeholder="elige una parte preparada" />
           </SelectTrigger>
           <SelectContent>
             {blocks.map((block) => (
@@ -319,7 +318,7 @@ function AddBlockPanel({
         disabled={isPending || blocksQuery.isLoading}
       >
         <Plus className="h-4 w-4" />
-        {isPending ? "anadiendo..." : "anadir a la estructura"}
+        {isPending ? "anadiendo..." : "anadir a la clase tipo"}
       </Button>
     </section>
   );
@@ -353,7 +352,7 @@ function IncludedExercisesList({ exercises }: { exercises: BlockExercise[] }) {
   if (exercises.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-background/35 px-3 py-3 text-xs text-muted-foreground">
-        sin ejercicios cargados; puedes completarlos desde la vista de bloques
+        sin ejercicios cargados; puedes completarlos desde partes
       </div>
     );
   }
@@ -389,7 +388,7 @@ function FetchedBlockExercises({
     return (
       <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        no pudimos cargar los ejercicios de este bloque.
+        no pudimos cargar los ejercicios de esta parte.
       </div>
     );
   }
@@ -397,7 +396,7 @@ function FetchedBlockExercises({
   if (exercises.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-background/35 px-3 py-3 text-xs text-muted-foreground">
-        sin ejercicios cargados; puedes completarlos desde la vista de bloques
+        sin ejercicios cargados; puedes completarlos desde partes
       </div>
     );
   }
@@ -443,7 +442,7 @@ function TrainingBlockCard({
 }) {
   const apiCategory = getApiBlockCategory(trainingBlock.block);
   const category = localBlock?.category ?? apiCategory;
-  const title = trainingBlock.block?.name ?? localBlock?.name ?? "bloque";
+  const title = trainingBlock.block?.name ?? localBlock?.name ?? "parte";
   const description =
     trainingBlock.notes ??
     trainingBlock.block?.description ??
@@ -561,8 +560,8 @@ export function TrainingDetailView({
     setError(null);
 
     if (!selectedBlockId) {
-      setError("Selecciona un bloque.");
-      toast.error("elige un bloque para anadirlo");
+      setError("Selecciona una parte.");
+      toast.error("elige una parte para anadirla");
       return;
     }
 
@@ -573,9 +572,9 @@ export function TrainingDetailView({
       });
 
       toast.promise(addPromise, {
-        loading: "anadiendo bloque...",
-        success: "bloque anadido al entrenamiento",
-        error: "no se pudo anadir el bloque",
+        loading: "anadiendo parte...",
+        success: "parte anadida a la clase tipo",
+        error: "no se pudo anadir la parte",
       });
 
       await addPromise;
@@ -584,7 +583,7 @@ export function TrainingDetailView({
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "No se pudo anadir el bloque.",
+          : "No se pudo anadir la parte.",
       );
     }
   };
@@ -593,9 +592,9 @@ export function TrainingDetailView({
     const removePromise = removeBlockFromTraining.mutateAsync(trainingBlockId);
 
     toast.promise(removePromise, {
-      loading: "quitando bloque...",
-      success: "bloque quitado del entrenamiento",
-      error: "no se pudo quitar el bloque",
+      loading: "quitando parte...",
+      success: "parte quitada de la clase tipo",
+      error: "no se pudo quitar la parte",
     });
 
     try {
@@ -620,7 +619,7 @@ export function TrainingDetailView({
                 estructura de clase
               </h3>
               <p className="text-sm text-muted-foreground">
-                {trainingBlocks.length} bloques -{" "}
+                {trainingBlocks.length} partes -{" "}
                 {formatMinutes(currentTraining.totalDurationSec)} min totales
               </p>
             </div>
@@ -629,14 +628,14 @@ export function TrainingDetailView({
           {trainingQuery.isLoading && (
             <LoadingState
               title="cargando estructura"
-              description="estamos leyendo los bloques del entrenamiento."
+              description="estamos leyendo las partes de la clase tipo."
               className="min-h-[220px]"
             />
           )}
 
           {trainingQuery.error && (
             <ErrorState
-              title="no pudimos cargar el entrenamiento"
+              title="no pudimos cargar la clase tipo"
               description={trainingQuery.error.message}
               actionLabel="reintentar"
               onAction={() => void trainingQuery.refetch()}
@@ -677,9 +676,9 @@ export function TrainingDetailView({
             !trainingQuery.error &&
             trainingBlocks.length === 0 && (
               <EmptyState
-                title="este entrenamiento todavia no tiene bloques"
-                description="anade un bloque para que la clase tenga una secuencia clara."
-                icon={Blocks}
+                title="esta clase tipo todavia no tiene partes"
+                description="anade una parte para que la clase tenga una secuencia clara."
+                icon={Layers}
                 className="min-h-[240px]"
               />
             )}
@@ -698,16 +697,16 @@ export function TrainingDetailView({
 
           {blocksQuery.isLoading && (
             <LoadingState
-              title="cargando bloques"
-              description="preparando bloques disponibles para esta clase."
+              title="cargando partes"
+              description="preparando partes disponibles para esta clase."
               className="min-h-[160px]"
             />
           )}
 
           {blocksQuery.error && (
             <ErrorState
-              title="no pudimos cargar los bloques"
-              description="reintenta para poder anadir bloques al entrenamiento."
+              title="no pudimos cargar las partes"
+              description="reintenta para poder anadir partes a la clase tipo."
               actionLabel="reintentar"
               onAction={() => void blocksQuery.refetch()}
               className="min-h-[180px]"
@@ -726,7 +725,7 @@ export function TrainingDetailView({
               lectura rapida
             </div>
             sigue el orden de arriba abajo en movil; en escritorio usa el panel
-            lateral para sumar bloques mientras revisas la estructura.
+            lateral para sumar partes mientras revisas la estructura.
           </section>
         </aside>
       </div>

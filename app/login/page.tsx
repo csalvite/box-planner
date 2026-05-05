@@ -20,14 +20,13 @@ export default function LoginPage() {
 
           <div className="relative space-y-5">
             <p className="text-sm font-medium uppercase text-primary">
-              saas para entrenamientos de boxeo
+              saas para clases de boxeo
             </p>
             <h2 className="text-5xl font-bold tracking-tight text-foreground">
-              organiza bloques, sesiones y gimnasios desde un solo sitio
+              programa clases, prepara partes y gestiona tu gimnasio
             </h2>
             <p className="max-w-md text-lg text-muted-foreground">
-              crea una base de trabajo clara para bloques reutilizables,
-              ejercicios internos y entrenamientos ordenados.
+              crea clases tipo, reutiliza partes y comparte lo que toca entrenar.
             </p>
           </div>
 
@@ -51,7 +50,7 @@ export default function LoginPage() {
               </div>
               <div className="rounded-md border border-border/70 bg-card/70 p-3">
                 <Activity className="h-4 w-4 text-chart-4" />
-                <p className="mt-2 text-xs text-muted-foreground">bloques</p>
+                <p className="mt-2 text-xs text-muted-foreground">partes</p>
                 <p className="text-sm font-semibold text-foreground">6</p>
               </div>
               <div className="rounded-md border border-border/70 bg-card/70 p-3">
@@ -64,7 +63,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          empieza simple: organizacion, bloques, ejercicios y entrenamientos.
+          empieza simple: clases, partes, ejercicios y alumnos.
         </p>
       </section>
 

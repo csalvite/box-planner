@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Blocks,
@@ -23,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TrainingDetailView } from "@/components/training-detail-view";
 import { TrainingForm } from "@/components/training-form";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import { useAppTranslation } from "@/hooks/use-app-translation";
@@ -63,22 +63,14 @@ export function TrainingsContent() {
   const deleteTraining = useDeleteTraining(activeOrganizationId);
   const trainings = trainingsQuery.data ?? [];
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedTraining, setSelectedTraining] = useState<ApiTraining | null>(
-    null,
-  );
-
-  const currentSelectedTraining = selectedTraining
-    ? trainings.find((training) => training.id === selectedTraining.id) ??
-      selectedTraining
-    : null;
 
   const handleDeleteTraining = async (trainingId: string) => {
     const deletePromise = deleteTraining.mutateAsync(trainingId);
 
     toast.promise(deletePromise, {
-      loading: "borrando entrenamiento...",
-      success: "entrenamiento borrado",
-      error: "no se pudo borrar el entrenamiento",
+      loading: "borrando clase tipo...",
+      success: "clase tipo borrada",
+      error: "no se pudo borrar la clase tipo",
     });
 
     try {
@@ -121,55 +113,31 @@ export function TrainingsContent() {
           <DialogHeader>
             <DialogTitle>{t("dashboard.newTrainingTitle")}</DialogTitle>
             <DialogDescription>
-              define la sesion y anade bloques existentes en el orden de trabajo.
+              define la clase tipo y anade partes en el orden de trabajo.
             </DialogDescription>
           </DialogHeader>
           <TrainingForm onSuccess={() => setIsCreateOpen(false)} />
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={!!currentSelectedTraining}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedTraining(null);
-          }
-        }}
-      >
-        <DialogContent className="h-[100dvh] max-h-[100dvh] max-w-full rounded-none border-0 p-4 sm:h-auto sm:max-h-[94dvh] sm:max-w-[min(1120px,calc(100%-1.5rem))] sm:rounded-lg sm:border sm:p-6">
-          <DialogHeader>
-            <DialogTitle>{currentSelectedTraining?.title}</DialogTitle>
-            <DialogDescription>
-              revisa la estructura del entrenamiento y ajusta sus bloques.
-            </DialogDescription>
-          </DialogHeader>
-          {activeOrganizationId && currentSelectedTraining && (
-            <TrainingDetailView
-              organizationId={activeOrganizationId}
-              training={currentSelectedTraining}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
       {!activeOrganizationId && (
         <EmptyState
           title="selecciona una organizacion"
-          description="necesitas una organizacion activa para gestionar entrenamientos."
+          description="necesitas una organizacion activa para gestionar clases tipo."
           icon={Dumbbell}
         />
       )}
 
       {activeOrganizationId && trainingsQuery.isLoading && (
         <LoadingState
-          title="cargando entrenamientos"
-          description="estamos leyendo las sesiones guardadas en la organizacion."
+          title="cargando clases tipo"
+          description="estamos leyendo las plantillas guardadas en la organizacion."
         />
       )}
 
       {activeOrganizationId && trainingsQuery.error && (
         <ErrorState
-          title="no pudimos cargar los entrenamientos"
+          title="no pudimos cargar las clases tipo"
           description={trainingsQuery.error.message}
           actionLabel="reintentar"
           onAction={() => void trainingsQuery.refetch()}
@@ -181,8 +149,8 @@ export function TrainingsContent() {
         !trainingsQuery.error && (
           <>
             <div className="rounded-lg border border-border/70 bg-card/45 px-4 py-3 text-sm text-muted-foreground">
-              un entrenamiento combina bloques en orden. Usa la estructura para
-              entender la sesion completa y ajustar que partes la componen.
+              una clase tipo combina partes en orden. Usala como plantilla para
+              programar clases reales.
             </div>
 
             {deleteTraining.error && (
@@ -250,7 +218,7 @@ export function TrainingsContent() {
                         <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Layers className="h-3.5 w-3.5" />
-                            bloques
+                            partes
                           </div>
                           <p className="mt-1 text-sm font-semibold text-foreground">
                             {blockCount}
@@ -268,11 +236,13 @@ export function TrainingsContent() {
                       </div>
 
                       <Button
+                        asChild
                         className="mt-auto w-full"
-                        onClick={() => setSelectedTraining(training)}
                       >
-                        <Blocks className="h-4 w-4" />
-                        gestionar estructura
+                        <Link href={`/trainings/${training.id}`}>
+                          <Blocks className="h-4 w-4" />
+                          ver estructura
+                        </Link>
                       </Button>
                     </div>
                   </AnimatedCard>

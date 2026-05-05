@@ -80,7 +80,7 @@ function getTrainingTitle(session: StudentNextSession) {
     session.training?.title ??
     session.training?.name ??
     session.title ??
-    "entrenamiento"
+    "clase"
   );
 }
 
@@ -96,7 +96,7 @@ function getOrderedBlocks(session: StudentNextSession) {
 }
 
 function getBlockTitle(block: StudentSessionBlock) {
-  return block.block?.name ?? "bloque";
+  return block.block?.name ?? "parte";
 }
 
 function getBlockDescription(block: StudentSessionBlock) {
@@ -335,7 +335,7 @@ export function StudentDashboardContent() {
       {!session && (
         <EmptyState
           title="todavia no tienes proxima clase"
-          description="cuando tu entrenador programe una sesion, aparecera aqui con sus bloques y ejercicios."
+          description="cuando tu entrenador programe una clase, aparecera aqui con sus partes y ejercicios."
           icon={CalendarClock}
           className="min-h-[360px]"
         />
@@ -352,7 +352,7 @@ export function StudentDashboardContent() {
                       proxima clase
                     </span>
                     <span className="rounded-full bg-secondary/80 px-3 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-white/10">
-                      {blocks.length} bloques
+                      {blocks.length} partes
                     </span>
                   </div>
 
@@ -406,7 +406,7 @@ export function StudentDashboardContent() {
                   estructura de la clase
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  sigue los bloques en orden de arriba abajo.
+                  sigue las partes en orden de arriba abajo.
                 </p>
               </div>
 
@@ -417,7 +417,7 @@ export function StudentDashboardContent() {
               ) : (
                 <EmptyState
                   title="la estructura aun no esta publicada"
-                  description="tu entrenador podra completar bloques y ejercicios antes de la clase."
+                  description="tu entrenador podra completar partes y ejercicios antes de la clase."
                   icon={Layers}
                   className="min-h-[260px]"
                 />
@@ -436,7 +436,7 @@ export function StudentDashboardContent() {
                     preparado para entrenar
                   </h3>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    revisa los bloques antes de llegar y guarda energia para las
+                    revisa las partes antes de llegar y guarda energia para las
                     partes principales de la sesion.
                   </p>
                 </div>

@@ -110,9 +110,9 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
       const createPromise = createFlow();
 
       toast.promise(createPromise, {
-        loading: "creando entrenamiento...",
-        success: "entrenamiento creado",
-        error: "no se pudo crear el entrenamiento",
+        loading: "creando clase tipo...",
+        success: "clase tipo creada",
+        error: "no se pudo crear la clase tipo",
       });
 
       await createPromise;
@@ -125,7 +125,7 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
         form:
           error instanceof Error
             ? error.message
-            : "No se pudo crear el entrenamiento.",
+            : "No se pudo crear la clase tipo.",
       });
     }
   };
@@ -207,9 +207,9 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
 
       <div className="space-y-3 rounded-lg border border-border/80 bg-background/45 p-4">
         <div>
-          <Label className="text-foreground">bloques</Label>
+          <Label className="text-foreground">partes de la clase</Label>
           <p className="mt-1 text-xs text-muted-foreground">
-            puedes anadirlos ahora o gestionarlos despues desde la estructura.
+            puedes anadirlas ahora o ajustarlas despues desde la estructura.
           </p>
         </div>
 
@@ -220,7 +220,7 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
             disabled={blocksQuery.isLoading || blocksQuery.isError}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecciona un bloque" />
+              <SelectValue placeholder="Selecciona una parte" />
             </SelectTrigger>
             <SelectContent>
               {blocks.map((block) => (
@@ -237,15 +237,15 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
 
         {blocksQuery.isLoading && (
           <LoadingState
-            title="cargando bloques"
-            description="podras anadirlos cuando esten disponibles."
+            title="cargando partes"
+            description="podras anadirlas cuando esten disponibles."
             className="min-h-[140px]"
           />
         )}
 
         {blocksQuery.error && (
           <ErrorState
-            title="no pudimos cargar los bloques"
+            title="no pudimos cargar las partes"
             description={blocksQuery.error.message}
             actionLabel="reintentar"
             onAction={() => void blocksQuery.refetch()}
@@ -264,7 +264,7 @@ export function TrainingForm({ onSuccess }: TrainingFormProps) {
                   className="flex items-center justify-between gap-2 rounded-md border border-border/80 bg-card/60 px-3 py-2 text-sm"
                 >
                   <span className="truncate">
-                    {index + 1}. {block?.name ?? "bloque"}
+                    {index + 1}. {block?.name ?? "parte"}
                   </span>
                   <Button
                     type="button"

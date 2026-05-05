@@ -2,7 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Layers, Dumbbell, Settings, CalendarDays, UsersRound } from "lucide-react"
+import {
+  CalendarDays,
+  Dumbbell,
+  Home,
+  Layers,
+  Settings,
+  UsersRound,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -14,20 +21,20 @@ import { isStaffOrganization } from "@/lib/organization-role"
 
 const navItems = [
   { href: "/", labelKey: "nav.home", icon: Home },
-  { href: "/blocks", labelKey: "nav.blocks", icon: Layers },
-  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
   {
     href: "/classes",
     labelKey: "nav.classes",
     icon: CalendarDays,
     staffOnly: true,
   },
+  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
   {
     href: "/members",
     labelKey: "nav.members",
     icon: UsersRound,
     staffOnly: true,
   },
+  { href: "/blocks", labelKey: "nav.blocks", icon: Layers, secondary: true },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ]
 
@@ -59,7 +66,11 @@ export function MobileNav() {
               href={item.href}
               className={cn(
                 "flex min-w-16 flex-1 flex-col items-center gap-1 px-2 py-3 text-xs transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                isActive
+                  ? "text-primary"
+                  : item.secondary
+                    ? "text-muted-foreground/70 hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
               )}
               >
                 <motion.div whileTap={{ scale: 0.9 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>

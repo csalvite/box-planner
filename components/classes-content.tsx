@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   CalendarClock,
@@ -114,7 +115,7 @@ function normalizeStatus(status?: string | null) {
 }
 
 function getTrainingTitle(session: ClassSession) {
-  return session.training?.title ?? "entrenamiento pendiente";
+  return session.training?.title ?? "clase tipo pendiente";
 }
 
 function ClassSessionCard({
@@ -233,7 +234,7 @@ export function ClassesContent() {
     }
 
     if (!form.trainingId) {
-      setFormError("Selecciona un entrenamiento.");
+      setFormError("Selecciona una clase tipo.");
       return;
     }
 
@@ -290,13 +291,22 @@ export function ClassesContent() {
             Clases
           </h1>
           <p className="mt-1 text-muted-foreground">
-            programa las proximas sesiones para tus alumnos.
+            programa las proximas clases para tus alumnos.
           </p>
         </div>
+        <Button asChild size="lg" className="w-full md:w-auto">
+          <Link href="#programar-clase">
+            <Plus className="h-4 w-4" />
+            programar clase
+          </Link>
+        </Button>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] xl:items-start">
-        <Card className="border-border/80 bg-card/70 p-5 shadow-md shadow-black/15">
+        <Card
+          id="programar-clase"
+          className="border-border/80 bg-card/70 p-5 shadow-md shadow-black/10"
+        >
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -304,7 +314,7 @@ export function ClassesContent() {
                   programar clase
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  elige entrenamiento y horario.
+                  elige una clase tipo y horario.
                 </p>
               </div>
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -325,14 +335,14 @@ export function ClassesContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="class-training">entrenamiento</Label>
+              <Label htmlFor="class-training">clase tipo</Label>
               <Select
                 value={form.trainingId}
                 onValueChange={(trainingId) => setForm({ ...form, trainingId })}
                 disabled={trainingsQuery.isLoading || trainingsQuery.isError}
               >
                 <SelectTrigger id="class-training" className="w-full">
-                  <SelectValue placeholder="selecciona entrenamiento" />
+                  <SelectValue placeholder="selecciona clase tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   {trainings.map((training) => (
@@ -392,7 +402,7 @@ export function ClassesContent() {
 
             {trainingsQuery.error && (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                no pudimos cargar entrenamientos.
+                no pudimos cargar clases tipo.
               </p>
             )}
 
@@ -421,7 +431,7 @@ export function ClassesContent() {
           {classSessionsQuery.isLoading && (
             <LoadingState
               title="cargando clases"
-              description="estamos leyendo las sesiones programadas."
+              description="estamos leyendo las clases programadas."
               className="min-h-[320px]"
             />
           )}
@@ -461,7 +471,7 @@ export function ClassesContent() {
             sessions.length === 0 && (
               <EmptyState
                 title="todavia no hay clases programadas"
-                description="programa la primera clase para que los alumnos vean que entreno les espera."
+                description="programa la primera clase para que los alumnos vean que les espera."
                 icon={CalendarClock}
                 className="min-h-[320px]"
               />

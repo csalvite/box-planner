@@ -2,7 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Layers, Dumbbell, Settings, CalendarDays, UsersRound } from "lucide-react"
+import {
+  CalendarDays,
+  Dumbbell,
+  Home,
+  Layers,
+  Settings,
+  UsersRound,
+} from "lucide-react"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { LogoutButton } from "@/components/logout-button"
 import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
@@ -13,20 +20,20 @@ import { isStaffOrganization } from "@/lib/organization-role"
 
 const navItems = [
   { href: "/", labelKey: "nav.home", icon: Home },
-  { href: "/blocks", labelKey: "nav.blocks", icon: Layers },
-  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
   {
     href: "/classes",
     labelKey: "nav.classes",
     icon: CalendarDays,
     staffOnly: true,
   },
+  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
   {
     href: "/members",
     labelKey: "nav.members",
     icon: UsersRound,
     staffOnly: true,
   },
+  { href: "/blocks", labelKey: "nav.blocks", icon: Layers, secondary: true },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ]
 
@@ -61,7 +68,9 @@ export function DesktopNav() {
                   "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    : item.secondary
+                      ? "text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
                 <Icon className="h-5 w-5" />

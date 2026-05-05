@@ -219,7 +219,7 @@ export function BlockExercisesPanel({
       {exercisesQuery.isLoading && (
         <LoadingState
           title="cargando ejercicios"
-          description="estamos leyendo la estructura actual de este bloque."
+          description="estamos leyendo la estructura actual de esta parte."
           className="min-h-[180px]"
         />
       )}
@@ -300,8 +300,8 @@ export function BlockExercisesPanel({
 
           {exercises.length === 0 && (
             <EmptyState
-              title="este bloque todavia no tiene ejercicios"
-              description="anade el primer ejercicio para empezar a calcular la duracion del bloque."
+              title="esta parte todavia no tiene ejercicios"
+              description="anade el primer ejercicio para empezar a calcular su duracion."
               className="min-h-[190px]"
             />
           )}

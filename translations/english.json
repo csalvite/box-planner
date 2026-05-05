@@ -1,10 +1,10 @@
 {
   "nav": {
     "home": "Home",
-    "blocks": "Blocks",
-    "trainings": "Trainings",
     "classes": "Classes",
+    "trainings": "Class templates",
     "members": "Members",
+    "blocks": "Class parts",
     "settings": "Settings"
   },
   "language": {
@@ -13,38 +13,38 @@
     "english": "English"
   },
   "dashboard": {
-    "title": "Welcome to Box Planner",
-    "subtitle": "Plan, train and improve",
-    "createTraining": "Create training",
+    "title": "Your next class",
+    "subtitle": "Schedule classes and prepare what students will see",
+    "createTraining": "Create class template",
     "thisMonth": "This month",
-    "trainings": "trainings",
+    "trainings": "classes",
     "totalTime": "Total time",
-    "trainingTime": "of training",
+    "trainingTime": "of class time",
     "currentStreak": "Current streak",
     "consecutiveDays": "consecutive days",
     "weeklyGoal": "Weekly goal",
     "minutes": "minutes",
-    "recentBlocks": "Recent blocks",
+    "recentBlocks": "Recent class parts",
     "viewAll": "View all",
-    "newTrainingTitle": "Create new training"
+    "newTrainingTitle": "Create class template"
   },
   "blocks": {
-    "title": "Training blocks",
-    "subtitle": "Manage your reusable blocks",
-    "newBlock": "New block",
-    "createBlockTitle": "Create new block",
+    "title": "Class parts",
+    "subtitle": "Manage reusable parts for your classes",
+    "newBlock": "New part",
+    "createBlockTitle": "Create new part",
     "name": "Name",
     "namePlaceholder": "e.g. Jab-cross drill",
     "category": "Category",
     "durationMinutes": "Duration (minutes)",
     "description": "Description",
-    "descriptionPlaceholder": "Describe the block...",
-    "createBlock": "Create block",
-    "searchPlaceholder": "Search blocks...",
+    "descriptionPlaceholder": "Describe this part...",
+    "createBlock": "Create part",
+    "searchPlaceholder": "Search parts...",
     "minutes": "minutes",
-    "emptyTitle": "No blocks found",
+    "emptyTitle": "No parts found",
     "emptySearch": "Try a different search term",
-    "emptyDefault": "Start by creating your first training block"
+    "emptyDefault": "Start by creating your first class part"
   },
   "blockCategories": {
     "warmUp": "Warm-up",
@@ -55,19 +55,19 @@
     "sparring": "Sparring"
   },
   "trainings": {
-    "title": "Trainings",
-    "subtitle": "Manage your training sessions",
-    "newTraining": "New training",
+    "title": "Class templates",
+    "subtitle": "Prepare reusable class plans before scheduling",
+    "newTraining": "New class template",
     "minutes": "minutes",
-    "blocksCount": "blocks",
-    "emptyTitle": "You have no trainings",
-    "emptySubtitle": "Start by creating your first training",
-    "createTraining": "Create training"
+    "blocksCount": "parts",
+    "emptyTitle": "You have no class templates",
+    "emptySubtitle": "Start by creating your first class template",
+    "createTraining": "Create class template"
   },
   "trainingForm": {
     "title": "Title",
     "titleRequired": "Title is required",
-    "titlePlaceholder": "e.g. Endurance training",
+    "titlePlaceholder": "e.g. Endurance class",
     "type": "Type",
     "typePersonal": "Personal",
     "typeGroup": "Group",
@@ -76,7 +76,7 @@
     "levelIntermediate": "Intermediate",
     "levelAdvanced": "Advanced",
     "notesOptional": "Notes (optional)",
-    "notesPlaceholder": "Add extra notes about the training...",
+    "notesPlaceholder": "Add extra notes about the class template...",
     "cancel": "Cancel",
     "create": "Create"
   },
@@ -90,7 +90,7 @@
     "email": "Email",
     "saveChanges": "Save changes",
     "weeklyGoal": "Weekly goal",
-    "weeklyGoalDescription": "Training minutes per week",
+    "weeklyGoalDescription": "Class minutes per week",
     "minutesPerWeek": "Minutes per week",
     "updateGoal": "Update goal",
     "theme": "Theme",

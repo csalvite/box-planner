@@ -185,7 +185,7 @@ export function BlocksContent() {
     }
 
     if (!selectedCategoryId) {
-      setFormError("No hay categorías disponibles para crear el bloque.");
+      setFormError("No hay categorias disponibles para crear la parte.");
       return;
     }
 
@@ -199,9 +199,9 @@ export function BlocksContent() {
         });
 
         toast.promise(createPromise, {
-          loading: "creando bloque...",
-          success: "bloque creado",
-          error: "no se pudo crear el bloque",
+          loading: "creando parte...",
+          success: "parte creada",
+          error: "no se pudo crear la parte",
         });
 
         await createPromise;
@@ -213,7 +213,7 @@ export function BlocksContent() {
         setIsDialogOpen(false);
       } catch (error) {
         setFormError(
-          error instanceof Error ? error.message : "No se pudo crear el bloque.",
+          error instanceof Error ? error.message : "No se pudo crear la parte.",
         );
       }
     }
@@ -228,9 +228,9 @@ export function BlocksContent() {
       const deletePromise = deleteBlock.mutateAsync(blockId);
 
       toast.promise(deletePromise, {
-        loading: "borrando bloque...",
-        success: "bloque borrado",
-        error: "no se pudo borrar el bloque",
+        loading: "borrando parte...",
+        success: "parte borrada",
+        error: "no se pudo borrar la parte",
       });
 
       await deletePromise;
@@ -375,7 +375,7 @@ export function BlocksContent() {
           <DialogHeader>
             <DialogTitle>{currentSelectedBlock?.name}</DialogTitle>
             <DialogDescription>
-              gestiona ejercicios, descansos y la duracion calculada del bloque.
+              gestiona ejercicios, descansos y la duracion calculada de esta parte.
             </DialogDescription>
           </DialogHeader>
           {activeOrganizationId && currentSelectedBlock && (
@@ -394,7 +394,7 @@ export function BlocksContent() {
             selecciona una organización
           </h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            necesitas una organización activa para gestionar bloques.
+            necesitas una organizacion activa para gestionar partes de clase.
           </p>
         </div>
       )}
@@ -417,21 +417,20 @@ export function BlocksContent() {
           </motion.div>
 
           <div className="rounded-lg border border-border/70 bg-card/45 px-4 py-3 text-sm text-muted-foreground">
-            un bloque es una parte reutilizable de una sesion. Dentro puedes
-            anadir ejercicios, descansos y notas para que la duracion se calcule
-            sola.
+            una parte agrupa ejercicios, descansos y notas para construir clases
+            tipo mas rapido.
           </div>
 
           {blocksQuery.isLoading && (
             <LoadingState
-              title="cargando bloques"
+              title="cargando partes"
               description="estamos preparando la biblioteca de la organizacion."
             />
           )}
 
           {blocksQuery.error && (
             <ErrorState
-              title="no pudimos cargar los bloques"
+              title="no pudimos cargar las partes"
               description={blocksQuery.error.message}
               actionLabel="reintentar"
               onAction={() => void blocksQuery.refetch()}
