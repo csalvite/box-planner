@@ -31,10 +31,19 @@ function getAuthErrorMessage(message: string) {
   return message;
 }
 
+function getSafeRedirect(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/";
+  }
+
+  return value;
+}
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loading: authLoading, session } = useAuth();
+  const redirectPath = getSafeRedirect(searchParams.get("redirect"));
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,9 +54,9 @@ export function LoginForm() {
 
   useEffect(() => {
     if (!authLoading && session) {
-      router.replace("/");
+      router.replace(redirectPath);
     }
-  }, [authLoading, router, session]);
+  }, [authLoading, redirectPath, router, session]);
 
   useEffect(() => {
     const confirmed = searchParams.get("confirmed");
@@ -108,7 +117,7 @@ export function LoginForm() {
 
       try {
         await signInPromise;
-        router.replace("/");
+        router.replace(redirectPath);
       } catch (nextError) {
         setError(
           nextError instanceof Error
@@ -151,7 +160,7 @@ export function LoginForm() {
       const data = await signUpPromise;
 
       if (data.session) {
-        router.replace("/");
+        router.replace(redirectPath);
         return;
       }
 

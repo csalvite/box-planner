@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Layers, Dumbbell, Settings, CalendarDays } from "lucide-react"
+import { Home, Layers, Dumbbell, Settings, CalendarDays, UsersRound } from "lucide-react"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { LogoutButton } from "@/components/logout-button"
 import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
@@ -19,6 +19,12 @@ const navItems = [
     href: "/classes",
     labelKey: "nav.classes",
     icon: CalendarDays,
+    staffOnly: true,
+  },
+  {
+    href: "/members",
+    labelKey: "nav.members",
+    icon: UsersRound,
     staffOnly: true,
   },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },

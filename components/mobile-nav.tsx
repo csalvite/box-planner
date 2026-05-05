@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Layers, Dumbbell, Settings, CalendarDays } from "lucide-react"
+import { Home, Layers, Dumbbell, Settings, CalendarDays, UsersRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -20,6 +20,12 @@ const navItems = [
     href: "/classes",
     labelKey: "nav.classes",
     icon: CalendarDays,
+    staffOnly: true,
+  },
+  {
+    href: "/members",
+    labelKey: "nav.members",
+    icon: UsersRound,
     staffOnly: true,
   },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
@@ -42,7 +48,7 @@ export function MobileNav() {
           <LanguageSwitcher />
         </div>
       </div>
-      <div className="flex items-center justify-around">
+      <div className="flex items-center justify-start overflow-x-auto">
         {visibleNavItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
@@ -52,7 +58,7 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-1 px-2 py-3 text-xs transition-colors",
+                "flex min-w-16 flex-1 flex-col items-center gap-1 px-2 py-3 text-xs transition-colors",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
               >
