@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TrainingBlocksPanel } from "@/components/training-blocks-panel";
+import { TrainingDetailView } from "@/components/training-detail-view";
 import { TrainingForm } from "@/components/training-form";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import { useAppTranslation } from "@/hooks/use-app-translation";
@@ -119,7 +119,7 @@ export function TrainingsContent() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[94dvh] max-w-[min(1120px,calc(100%-1rem))] p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{currentSelectedTraining?.title}</DialogTitle>
             <DialogDescription>
@@ -127,7 +127,7 @@ export function TrainingsContent() {
             </DialogDescription>
           </DialogHeader>
           {activeOrganizationId && currentSelectedTraining && (
-            <TrainingBlocksPanel
+            <TrainingDetailView
               organizationId={activeOrganizationId}
               training={currentSelectedTraining}
             />
