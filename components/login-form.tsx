@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
+  getPendingInviteRedirect,
   getSafeRedirect,
   isInviteRedirect,
   setPendingInviteRedirect,
@@ -40,7 +41,10 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loading: authLoading, session } = useAuth();
-  const redirectPath = getSafeRedirect(searchParams.get("redirect"));
+  const redirectParam = searchParams.get("redirect");
+  const redirectPath = getSafeRedirect(
+    redirectParam ?? getPendingInviteRedirect(),
+  );
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,6 +67,11 @@ export function LoginForm() {
 
   useEffect(() => {
     const confirmed = searchParams.get("confirmed");
+    const emailParam = searchParams.get("email");
+
+    if (emailParam) {
+      setEmail(emailParam);
+    }
 
     if (confirmed === "1") {
       setNotice("Email confirmado. Ya puedes iniciar sesion.");

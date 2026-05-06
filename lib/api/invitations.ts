@@ -32,6 +32,12 @@ export interface AcceptInvitationInput {
   token: string;
 }
 
+export interface RegisterFromInvitationInput {
+  token: string;
+  displayName: string;
+  password: string;
+}
+
 export interface AcceptInvitationResponse {
   organizationId?: string;
   organization?: {
@@ -184,6 +190,13 @@ export async function acceptInvitation(
 ) {
   return apiFetch<AcceptInvitationResponse>("/invitations/accept", {
     accessToken,
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function registerFromInvitation(input: RegisterFromInvitationInput) {
+  return apiFetch<void>("/invitations/register", {
     method: "POST",
     body: JSON.stringify(input),
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,11 +8,14 @@ import { toast } from "sonner";
 import { Building2, CheckCircle2, LogOut, MailCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import {
   useAcceptInvitation,
   useInvitationPreview,
+  useRegisterFromInvitation,
 } from "@/hooks/use-invitations";
 import { organizationsQueryKey } from "@/hooks/use-organizations";
 import {
@@ -43,8 +46,13 @@ export function InviteContent() {
   const { loading, session, user } = useAuth();
   const { refetch } = useActiveOrganization();
   const acceptInvitation = useAcceptInvitation();
+  const registerFromInvitation = useRegisterFromInvitation();
   const [accepted, setAccepted] = useState(false);
   const [switchingAccount, setSwitchingAccount] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const invitePath = token
     ? `/invite?token=${encodeURIComponent(token)}`
     : "/invite";
@@ -70,6 +78,48 @@ export function InviteContent() {
     }
 
     router.replace(loginHref);
+  };
+
+  const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(null);
+
+    if (!token || !preview) {
+      setFormError("No pudimos leer esta invitacion.");
+      return;
+    }
+
+    if (!displayName.trim()) {
+      setFormError("El nombre es obligatorio.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setFormError("La contrasena debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setFormError("Las contrasenas no coinciden.");
+      return;
+    }
+
+    try {
+      await registerFromInvitation.mutateAsync({
+        token,
+        displayName: displayName.trim(),
+        password,
+      });
+
+      toast.success("cuenta creada, ya puedes iniciar sesión");
+      router.replace(`/login?email=${encodeURIComponent(preview.email)}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo crear la cuenta.";
+
+      setFormError(message);
+      toast.error("no se pudo crear la cuenta");
+    }
   };
 
   const handleAccept = async () => {
@@ -191,14 +241,92 @@ export function InviteContent() {
         )}
 
         {token && preview && !session && (
-          <div className="mt-4 space-y-4">
-            <p className="text-sm leading-6 text-muted-foreground">
-              inicia sesión o crea una cuenta para aceptar esta invitación.
-            </p>
-            <Button asChild size="lg" className="w-full">
-              <Link href={loginHref}>iniciar sesión o crear cuenta</Link>
+          <form onSubmit={handleRegister} className="mt-4 space-y-4 text-left">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">
+                crear cuenta para unirte
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                usa estos datos para crear tu acceso como {roleLabel}.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="invite-register-email">email</Label>
+              <Input
+                id="invite-register-email"
+                type="email"
+                value={preview.email}
+                readOnly
+                className="bg-background/55"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="invite-register-name">nombre</Label>
+              <Input
+                id="invite-register-name"
+                autoComplete="name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="invite-register-password">contrasena</Label>
+              <Input
+                id="invite-register-password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="invite-register-confirm-password">
+                confirmar contrasena
+              </Label>
+              <Input
+                id="invite-register-confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                required
+              />
+            </div>
+
+            {formError ? (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {formError}
+              </p>
+            ) : null}
+
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={registerFromInvitation.isPending}
+            >
+              {registerFromInvitation.isPending
+                ? "creando..."
+                : "crear cuenta para unirte"}
             </Button>
-          </div>
+
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="w-full bg-transparent"
+            >
+              <Link href={`${loginHref}&email=${encodeURIComponent(preview.email)}`}>
+                ya tengo cuenta, iniciar sesión
+              </Link>
+            </Button>
+          </form>
         )}
 
         {token && preview && session && (

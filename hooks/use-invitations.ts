@@ -6,9 +6,11 @@ import {
   createInvitation,
   getInvitationPreview,
   getInvitations,
+  registerFromInvitation,
   type AcceptInvitationInput,
   type CreateInvitationInput,
   type Invitation,
+  type RegisterFromInvitationInput,
 } from "@/lib/api/invitations";
 import { useAuth } from "@/components/providers/auth-provider";
 import { organizationsQueryKey } from "@/hooks/use-organizations";
@@ -69,6 +71,13 @@ export function useInvitationPreview(token?: string | null) {
     queryKey: invitationPreviewQueryKey(token),
     queryFn: () => getInvitationPreview(token as string),
     enabled: Boolean(token),
+  });
+}
+
+export function useRegisterFromInvitation() {
+  return useMutation({
+    mutationFn: (input: RegisterFromInvitationInput) =>
+      registerFromInvitation(input),
   });
 }
 
