@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, MailPlus, UsersRound } from "lucide-react";
+import { Copy, MailPlus, UserMinus, UsersRound } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
@@ -20,9 +32,14 @@ import {
   useCreateInvitation,
   useInvitations,
 } from "@/hooks/use-invitations";
+import {
+  useOrganizationMembers,
+  useRemoveOrganizationMember,
+} from "@/hooks/use-members";
 import type { Invitation } from "@/lib/api/invitations";
+import type { OrganizationMember } from "@/lib/api/members";
 import type { OrganizationRole } from "@/lib/api/types";
-import { isStaffOrganization } from "@/lib/organization-role";
+import { getOrganizationRole, isStaffOrganization } from "@/lib/organization-role";
 import { cn } from "@/lib/utils";
 
 const roleOptions: Array<{ value: OrganizationRole; label: string }> = [
@@ -42,6 +59,36 @@ const statusColors: Record<string, string> = {
   ACCEPTED: "bg-chart-2/15 text-chart-2 ring-chart-2/20",
   EXPIRED: "bg-destructive/10 text-destructive ring-destructive/20",
 };
+
+const memberRoleLabels: Record<string, string> = {
+  OWNER: "propietario",
+  ADMIN: "administrador",
+  COACH: "coach",
+  VIEWER: "alumno",
+};
+
+const memberStatusLabels: Record<string, string> = {
+  ACTIVE: "activo",
+  INVITED: "invitado",
+  SUSPENDED: "suspendido",
+  REMOVED: "eliminado",
+};
+
+const memberStatusColors: Record<string, string> = {
+  ACTIVE: "bg-chart-2/15 text-chart-2 ring-chart-2/20",
+  INVITED: "bg-primary/10 text-primary ring-primary/15",
+  SUSPENDED: "bg-chart-5/15 text-chart-5 ring-chart-5/20",
+  REMOVED: "bg-muted text-muted-foreground ring-border",
+};
+
+type MemberFilter = "active" | "all" | "students" | "coaches";
+
+const memberFilterOptions: Array<{ value: MemberFilter; label: string }> = [
+  { value: "active", label: "activos" },
+  { value: "all", label: "todos" },
+  { value: "students", label: "alumnos" },
+  { value: "coaches", label: "coaches" },
+];
 
 function normalizeStatus(status?: string | null) {
   return (status ?? "PENDING").toUpperCase();
@@ -63,6 +110,77 @@ function formatDate(value?: string | Date | null) {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function getMemberRole(member: OrganizationMember) {
+  return String(member.role ?? member.membership?.role ?? "VIEWER").toUpperCase();
+}
+
+function getMemberStatus(member: OrganizationMember) {
+  return String(
+    member.status ?? member.membership?.status ?? "ACTIVE",
+  ).toUpperCase();
+}
+
+function getMemberName(member: OrganizationMember) {
+  return (
+    member.displayName ??
+    member.profile?.displayName ??
+    member.user?.profile?.displayName ??
+    member.name ??
+    member.user?.displayName ??
+    member.user?.name ??
+    member.email ??
+    member.user?.email ??
+    "miembro"
+  );
+}
+
+function getMemberEmail(member: OrganizationMember) {
+  return member.email ?? member.user?.email ?? null;
+}
+
+function getMemberAvatar(member: OrganizationMember) {
+  return (
+    member.avatarUrl ??
+    member.profile?.avatarUrl ??
+    member.user?.profile?.avatarUrl ??
+    member.user?.avatarUrl ??
+    null
+  );
+}
+
+function getMemberJoinedAt(member: OrganizationMember) {
+  return member.joinedAt ?? member.membership?.joinedAt ?? member.createdAt ?? null;
+}
+
+function getInitial(value: string) {
+  return value.trim().charAt(0).toUpperCase() || "?";
+}
+
+function filterMembers(members: OrganizationMember[], filter: MemberFilter) {
+  return members.filter((member) => {
+    const role = getMemberRole(member);
+    const status = getMemberStatus(member);
+
+    if (filter !== "all" && status === "REMOVED") {
+      return false;
+    }
+
+    if (filter === "students") {
+      return role === "VIEWER";
+    }
+
+    if (filter === "coaches") {
+      return role === "COACH";
+    }
+
+    if (filter === "active") {
+      return status === "ACTIVE";
+    }
+
+    return true;
+  });
 }
 
 function buildInviteLink(token?: string | null) {
@@ -160,15 +278,126 @@ function InvitationCard({ invitation }: { invitation: Invitation }) {
   );
 }
 
+function MemberCard({
+  member,
+  canManageMembers,
+  onRemove,
+  removing,
+}: {
+  member: OrganizationMember;
+  canManageMembers: boolean;
+  onRemove: (member: OrganizationMember) => void;
+  removing: boolean;
+}) {
+  const name = getMemberName(member);
+  const email = getMemberEmail(member);
+  const avatar = getMemberAvatar(member);
+  const role = getMemberRole(member);
+  const status = getMemberStatus(member);
+  const joinedAt = formatDate(getMemberJoinedAt(member));
+  const canRemoveMember =
+    canManageMembers && role === "VIEWER" && status !== "REMOVED";
+
+  return (
+    <Card className="border-border/80 bg-card/70 p-4 shadow-md shadow-black/10 md:p-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Avatar className="size-11 ring-1 ring-border">
+            {avatar ? <AvatarImage src={avatar} alt={name} /> : null}
+            <AvatarFallback className="bg-primary/15 font-semibold text-primary">
+              {getInitial(name)}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="min-w-0 space-y-2">
+            <div>
+              <h3 className="truncate text-base font-semibold text-foreground">
+                {name}
+              </h3>
+              {email && email !== name ? (
+                <p className="truncate text-sm text-muted-foreground">{email}</p>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-white/10">
+                {memberRoleLabels[role] ?? role.toLowerCase()}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium ring-1",
+                  memberStatusColors[status] ?? memberStatusColors.ACTIVE,
+                )}
+              >
+                {memberStatusLabels[status] ?? status.toLowerCase()}
+              </span>
+              <span className="rounded-full bg-background/55 px-3 py-1 text-xs text-muted-foreground ring-1 ring-border/70">
+                {joinedAt ? `alta ${joinedAt}` : "alta sin fecha"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {canRemoveMember ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full bg-transparent text-destructive hover:text-destructive md:w-auto"
+                disabled={removing}
+              >
+                <UserMinus className="h-4 w-4" />
+                desactivar
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>desactivar alumno</AlertDialogTitle>
+                <AlertDialogDescription>
+                  este alumno dejara de aparecer como activo en la organizacion.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => onRemove(member)}
+                >
+                  desactivar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
 export function MembersContent() {
   const { activeOrganization, activeOrganizationId } = useActiveOrganization();
-  const invitationsQuery = useInvitations(activeOrganizationId);
-  const createInvitation = useCreateInvitation(activeOrganizationId);
+  const canAccessMembers = isStaffOrganization(activeOrganization);
+  const membersOrganizationId = canAccessMembers ? activeOrganizationId : null;
+  const membersQuery = useOrganizationMembers(membersOrganizationId);
+  const removeMember = useRemoveOrganizationMember(membersOrganizationId);
+  const invitationsQuery = useInvitations(membersOrganizationId);
+  const createInvitation = useCreateInvitation(membersOrganizationId);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrganizationRole>("VIEWER");
   const [formError, setFormError] = useState<string | null>(null);
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>("active");
+  const invitations = invitationsQuery.data ?? [];
+  const members = membersQuery.data ?? [];
+  const filteredMembers = useMemo(
+    () => filterMembers(members, memberFilter),
+    [memberFilter, members],
+  );
+  const currentRole = getOrganizationRole(activeOrganization);
+  const canManageMembers = currentRole === "OWNER" || currentRole === "ADMIN";
 
-  if (!isStaffOrganization(activeOrganization)) {
+  if (!canAccessMembers) {
     return (
       <EmptyState
         title="no tienes acceso a miembros"
@@ -179,7 +408,15 @@ export function MembersContent() {
     );
   }
 
-  const invitations = invitationsQuery.data ?? [];
+  const handleRemoveMember = (member: OrganizationMember) => {
+    const removePromise = removeMember.mutateAsync(member.id);
+
+    toast.promise(removePromise, {
+      loading: "desactivando alumno...",
+      success: "alumno desactivado",
+      error: "no se pudo desactivar el alumno",
+    });
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -224,8 +461,77 @@ export function MembersContent() {
           Miembros
         </h1>
         <p className="mt-1 text-muted-foreground">
-          invita alumnos y comparte enlaces de acceso a tu organizacion.
+          revisa alumnos y coaches, y comparte invitaciones cuando haga falta.
         </p>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">miembros</h2>
+            <p className="text-sm text-muted-foreground">
+              {filteredMembers.length} de {members.length} miembros visibles
+            </p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
+            {memberFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={memberFilter === option.value ? "default" : "outline"}
+                size="sm"
+                className={cn(
+                  "shrink-0",
+                  memberFilter !== option.value && "bg-transparent",
+                )}
+                onClick={() => setMemberFilter(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {membersQuery.isLoading && (
+          <LoadingState
+            title="cargando miembros"
+            description="estamos leyendo los miembros de la organizacion."
+            className="min-h-[320px]"
+          />
+        )}
+
+        {membersQuery.error && (
+          <ErrorState
+            title="no pudimos cargar miembros"
+            description={membersQuery.error.message}
+            actionLabel="reintentar"
+            onAction={() => void membersQuery.refetch()}
+            className="min-h-[320px]"
+          />
+        )}
+
+        {!membersQuery.isLoading &&
+          !membersQuery.error &&
+          filteredMembers.map((member) => (
+            <MemberCard
+              key={member.id}
+              member={member}
+              canManageMembers={canManageMembers}
+              onRemove={handleRemoveMember}
+              removing={removeMember.isPending}
+            />
+          ))}
+
+        {!membersQuery.isLoading &&
+          !membersQuery.error &&
+          filteredMembers.length === 0 && (
+            <EmptyState
+              title="no hay miembros en este filtro"
+              description="prueba con otro filtro o crea una invitacion."
+              icon={UsersRound}
+              className="min-h-[320px]"
+            />
+          )}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] xl:items-start">
