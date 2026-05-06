@@ -39,6 +39,7 @@ import {
   useDeleteBlock,
 } from "@/hooks/use-blocks";
 import { useBlockExercises } from "@/hooks/use-exercises";
+import { isStaffOrganization } from "@/lib/organization-role";
 
 const categoryColors = {
   "warm-up": "bg-chart-2/20 text-chart-2",
@@ -131,11 +132,13 @@ function BlockExerciseCountValue({
 
 export function BlocksContent() {
   const { t } = useAppTranslation();
-  const { activeOrganizationId } = useActiveOrganization();
-  const blocksQuery = useBlocks(activeOrganizationId);
+  const { activeOrganization, activeOrganizationId } = useActiveOrganization();
+  const canManageBlocks = isStaffOrganization(activeOrganization);
+  const blocksOrganizationId = canManageBlocks ? activeOrganizationId : null;
+  const blocksQuery = useBlocks(blocksOrganizationId);
   const blockCategoriesQuery = useBlockCategories();
-  const createBlock = useCreateBlock(activeOrganizationId);
-  const deleteBlock = useDeleteBlock(activeOrganizationId);
+  const createBlock = useCreateBlock(blocksOrganizationId);
+  const deleteBlock = useDeleteBlock(blocksOrganizationId);
   const blocks = blocksQuery.data ?? [];
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -175,6 +178,17 @@ export function BlocksContent() {
 
     return uiCategory ? categoryLabels[uiCategory] : categoryKey;
   };
+
+  if (!canManageBlocks) {
+    return (
+      <EmptyState
+        title="no tienes acceso a partes"
+        description="esta pantalla esta disponible para owners, admins y coaches."
+        icon={Layers}
+        className="min-h-[420px]"
+      />
+    );
+  }
 
   const handleAddBlock = async () => {
     setFormError(null);

@@ -29,6 +29,7 @@ import { useActiveOrganization } from "@/components/providers/organization-provi
 import { useAppTranslation } from "@/hooks/use-app-translation";
 import { useDeleteTraining, useTrainings } from "@/hooks/use-trainings";
 import type { ApiTraining } from "@/lib/api/trainings";
+import { isStaffOrganization } from "@/lib/organization-role";
 
 function formatMinutes(totalDurationSec: number) {
   return Math.round(totalDurationSec / 60);
@@ -58,9 +59,11 @@ function formatLevel(level?: string | null) {
 
 export function TrainingsContent() {
   const { t } = useAppTranslation();
-  const { activeOrganizationId } = useActiveOrganization();
-  const trainingsQuery = useTrainings(activeOrganizationId);
-  const deleteTraining = useDeleteTraining(activeOrganizationId);
+  const { activeOrganization, activeOrganizationId } = useActiveOrganization();
+  const canManageTrainings = isStaffOrganization(activeOrganization);
+  const trainingsOrganizationId = canManageTrainings ? activeOrganizationId : null;
+  const trainingsQuery = useTrainings(trainingsOrganizationId);
+  const deleteTraining = useDeleteTraining(trainingsOrganizationId);
   const trainings = trainingsQuery.data ?? [];
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -79,6 +82,17 @@ export function TrainingsContent() {
       // react query keeps the detailed error for the inline state
     }
   };
+
+  if (!canManageTrainings) {
+    return (
+      <EmptyState
+        title="no tienes acceso a clases tipo"
+        description="esta pantalla esta disponible para owners, admins y coaches."
+        icon={Dumbbell}
+        className="min-h-[420px]"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

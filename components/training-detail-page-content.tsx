@@ -7,14 +7,17 @@ import { ErrorState, LoadingState } from "@/components/ui/data-state";
 import { TrainingDetailView } from "@/components/training-detail-view";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import { useTraining } from "@/hooks/use-trainings";
+import { isStaffOrganization } from "@/lib/organization-role";
 
 export function TrainingDetailPageContent({
   trainingId,
 }: {
   trainingId: string;
 }) {
-  const { activeOrganizationId } = useActiveOrganization();
-  const trainingQuery = useTraining(activeOrganizationId, trainingId);
+  const { activeOrganization, activeOrganizationId } = useActiveOrganization();
+  const canManageTrainings = isStaffOrganization(activeOrganization);
+  const trainingOrganizationId = canManageTrainings ? activeOrganizationId : null;
+  const trainingQuery = useTraining(trainingOrganizationId, trainingId);
 
   return (
     <div className="space-y-6">
@@ -25,7 +28,15 @@ export function TrainingDetailPageContent({
         </Link>
       </Button>
 
-      {!activeOrganizationId && (
+      {!canManageTrainings && (
+        <ErrorState
+          title="no tienes acceso a clases tipo"
+          description="esta pantalla esta disponible para owners, admins y coaches."
+          icon={Dumbbell}
+        />
+      )}
+
+      {canManageTrainings && !activeOrganizationId && (
         <ErrorState
           title="selecciona una organizacion"
           description="necesitas una organizacion activa para revisar esta clase tipo."
@@ -33,7 +44,7 @@ export function TrainingDetailPageContent({
         />
       )}
 
-      {activeOrganizationId && trainingQuery.isLoading && (
+      {canManageTrainings && activeOrganizationId && trainingQuery.isLoading && (
         <LoadingState
           title="cargando clase tipo"
           description="estamos preparando la estructura completa."
@@ -41,7 +52,7 @@ export function TrainingDetailPageContent({
         />
       )}
 
-      {activeOrganizationId && trainingQuery.error && (
+      {canManageTrainings && activeOrganizationId && trainingQuery.error && (
         <ErrorState
           title="no pudimos cargar la clase tipo"
           description={trainingQuery.error.message}
@@ -51,7 +62,7 @@ export function TrainingDetailPageContent({
         />
       )}
 
-      {activeOrganizationId && trainingQuery.data && (
+      {canManageTrainings && activeOrganizationId && trainingQuery.data && (
         <TrainingDetailView
           organizationId={activeOrganizationId}
           training={trainingQuery.data}

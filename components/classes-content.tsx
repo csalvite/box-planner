@@ -195,10 +195,12 @@ function ClassSessionCard({
 
 export function ClassesContent() {
   const { activeOrganization, activeOrganizationId } = useActiveOrganization();
-  const classSessionsQuery = useClassSessions(activeOrganizationId);
-  const trainingsQuery = useTrainings(activeOrganizationId);
-  const createClassSession = useCreateClassSession(activeOrganizationId);
-  const deleteClassSession = useDeleteClassSession(activeOrganizationId);
+  const canManageClasses = isStaffOrganization(activeOrganization);
+  const classesOrganizationId = canManageClasses ? activeOrganizationId : null;
+  const classSessionsQuery = useClassSessions(classesOrganizationId);
+  const trainingsQuery = useTrainings(classesOrganizationId);
+  const createClassSession = useCreateClassSession(classesOrganizationId);
+  const deleteClassSession = useDeleteClassSession(classesOrganizationId);
   const [form, setForm] = useState<ClassSessionFormState>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -213,7 +215,7 @@ export function ClassesContent() {
     [classSessionsQuery.data],
   );
 
-  if (!isStaffOrganization(activeOrganization)) {
+  if (!canManageClasses) {
     return (
       <EmptyState
         title="no tienes acceso a clases"

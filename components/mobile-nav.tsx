@@ -27,14 +27,14 @@ const navItems = [
     icon: CalendarDays,
     staffOnly: true,
   },
-  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell },
+  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell, staffOnly: true },
   {
     href: "/members",
     labelKey: "nav.members",
     icon: UsersRound,
     staffOnly: true,
   },
-  { href: "/blocks", labelKey: "nav.blocks", icon: Layers, secondary: true },
+  { href: "/blocks", labelKey: "nav.blocks", icon: Layers, secondary: true, staffOnly: true },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ]
 
