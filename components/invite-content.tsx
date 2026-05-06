@@ -60,12 +60,19 @@ export function InviteContent() {
   const previewQuery = useInvitationPreview(token);
   const preview = previewQuery.data;
   const roleLabel = getInviteRoleLabel(preview?.role);
+  const invitationAccepted = preview?.status?.toUpperCase() === "ACCEPTED";
 
   useEffect(() => {
     if (token) {
       setPendingInviteRedirect(invitePath);
     }
   }, [invitePath, token]);
+
+  useEffect(() => {
+    if (invitationAccepted) {
+      clearPendingInviteRedirect();
+    }
+  }, [invitationAccepted]);
 
   const handleUseOtherAccount = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -111,8 +118,11 @@ export function InviteContent() {
         password,
       });
 
-      toast.success("cuenta creada, ya puedes iniciar sesión");
-      router.replace(`/login?email=${encodeURIComponent(preview.email)}`);
+      clearPendingInviteRedirect();
+      toast.success("cuenta creada. inicia sesión para entrar a tu panel");
+      router.replace(
+        `/login?email=${encodeURIComponent(preview.email)}&registeredFromInvite=1`,
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "No se pudo crear la cuenta.";
@@ -208,9 +218,11 @@ export function InviteContent() {
           <div className="mt-4 space-y-3 text-left">
             <div className="rounded-md border border-primary/30 bg-primary/10 px-3 py-3">
               <p className="text-sm font-semibold text-primary">
-                te han invitado como {roleLabel}
+                {invitationAccepted
+                  ? "esta invitación ya fue aceptada"
+                  : `te han invitado como ${roleLabel}`}
               </p>
-              {!session ? (
+              {!session && !invitationAccepted ? (
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   crea tu cuenta para unirte a esta organización
                 </p>
@@ -240,7 +252,15 @@ export function InviteContent() {
           </div>
         )}
 
-        {token && preview && !session && (
+        {token && preview && invitationAccepted && (
+          <div className="mt-4">
+            <Button asChild size="lg" className="w-full">
+              <Link href="/">ir al inicio</Link>
+            </Button>
+          </div>
+        )}
+
+        {token && preview && !session && !invitationAccepted && (
           <form onSubmit={handleRegister} className="mt-4 space-y-4 text-left">
             <div>
               <h2 className="text-base font-semibold text-foreground">
@@ -329,7 +349,7 @@ export function InviteContent() {
           </form>
         )}
 
-        {token && preview && session && (
+        {token && preview && session && !invitationAccepted && (
           <div className="mt-4 space-y-4">
             <div className="rounded-md border border-border/70 bg-background/55 px-3 py-3 text-left">
               <p className="text-xs font-medium uppercase text-muted-foreground">

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
+  clearPendingInviteRedirect,
   getPendingInviteRedirect,
   getSafeRedirect,
   isInviteRedirect,
@@ -42,8 +43,9 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const { loading: authLoading, session } = useAuth();
   const redirectParam = searchParams.get("redirect");
+  const registeredFromInvite = searchParams.get("registeredFromInvite") === "1";
   const redirectPath = getSafeRedirect(
-    redirectParam ?? getPendingInviteRedirect(),
+    registeredFromInvite ? "/" : redirectParam ?? getPendingInviteRedirect(),
   );
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -60,10 +62,15 @@ export function LoginForm() {
   }, [authLoading, redirectPath, router, session]);
 
   useEffect(() => {
+    if (registeredFromInvite) {
+      clearPendingInviteRedirect();
+      return;
+    }
+
     if (isInviteRedirect(redirectPath)) {
       setPendingInviteRedirect(redirectPath);
     }
-  }, [redirectPath]);
+  }, [redirectPath, registeredFromInvite]);
 
   useEffect(() => {
     const confirmed = searchParams.get("confirmed");
@@ -73,11 +80,17 @@ export function LoginForm() {
       setEmail(emailParam);
     }
 
+    if (registeredFromInvite) {
+      setNotice("cuenta creada. inicia sesión para entrar a tu panel");
+      setMode("login");
+      return;
+    }
+
     if (confirmed === "1") {
       setNotice("Email confirmado. Ya puedes iniciar sesion.");
       setMode("login");
     }
-  }, [searchParams]);
+  }, [registeredFromInvite, searchParams]);
 
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);

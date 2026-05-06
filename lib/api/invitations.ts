@@ -56,6 +56,7 @@ export interface InvitationPreview {
   organizationName: string;
   email: string;
   role: OrganizationRole | string;
+  status?: InvitationStatus | null;
 }
 
 type InvitationsResponse =
@@ -85,6 +86,7 @@ type InvitationPreviewResponse =
       organizationName?: string | null;
       email?: string | null;
       role?: OrganizationRole | string | null;
+      status?: InvitationStatus | null;
     };
 
 function unwrapInvitations(response: InvitationsResponse) {
@@ -128,6 +130,7 @@ function unwrapInvitationPreview(
     organizationName?: string | null;
     email?: string | null;
     role?: OrganizationRole | string | null;
+    status?: InvitationStatus | null;
   };
   const data = record.data ?? null;
   const invitation = record.invitation ?? null;
@@ -135,6 +138,7 @@ function unwrapInvitationPreview(
     record.organizationName ?? record.organization?.name ?? data?.organizationName;
   const email = record.email ?? invitation?.email ?? data?.email;
   const role = record.role ?? invitation?.role ?? data?.role;
+  const status = record.status ?? invitation?.status ?? data?.status ?? null;
 
   if (!organizationName || !email || !role) {
     throw new Error("La API no devolvio la vista previa de la invitacion");
@@ -144,6 +148,7 @@ function unwrapInvitationPreview(
     organizationName,
     email,
     role,
+    status,
   };
 }
 
