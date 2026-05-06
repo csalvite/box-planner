@@ -4,11 +4,17 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  getSafeRedirect,
+  isInviteRedirect,
+  setPendingInviteRedirect,
+} from "@/lib/invite-redirect";
 
 function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [message, setMessage] = useState("confirmando tu email...");
+  const redirectPath = getSafeRedirect(searchParams.get("redirect"));
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -19,22 +25,31 @@ function AuthCallbackContent() {
     }
 
     const code = searchParams.get("code");
+    const loginPath = `/login?confirmed=1${
+      isInviteRedirect(redirectPath)
+        ? `&redirect=${encodeURIComponent(redirectPath)}`
+        : ""
+    }`;
 
     if (!code) {
-      router.replace("/login?confirmed=1");
+      router.replace(loginPath);
       return;
+    }
+
+    if (isInviteRedirect(redirectPath)) {
+      setPendingInviteRedirect(redirectPath);
     }
 
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
       if (error) {
         setMessage("no pudimos confirmar la sesion. vuelve a iniciar sesion.");
-        router.replace("/login");
+        router.replace(loginPath);
         return;
       }
 
-      router.replace("/");
+      router.replace(redirectPath);
     });
-  }, [router, searchParams]);
+  }, [redirectPath, router, searchParams]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">

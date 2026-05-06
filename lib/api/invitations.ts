@@ -46,6 +46,12 @@ export interface CreateInvitationResponse {
   emailSent: boolean;
 }
 
+export interface InvitationPreview {
+  organizationName: string;
+  email: string;
+  role: OrganizationRole | string;
+}
+
 type InvitationsResponse =
   | Invitation[]
   | {
@@ -60,6 +66,19 @@ type InvitationResponse =
       data?: Invitation;
       inviteUrl?: string | null;
       emailSent?: boolean;
+    };
+
+type InvitationPreviewResponse =
+  | InvitationPreview
+  | {
+      invitation?: Partial<Invitation> | null;
+      organization?: {
+        name?: string | null;
+      } | null;
+      data?: Partial<InvitationPreview> | null;
+      organizationName?: string | null;
+      email?: string | null;
+      role?: OrganizationRole | string | null;
     };
 
 function unwrapInvitations(response: InvitationsResponse) {
@@ -93,6 +112,35 @@ function unwrapInvitation(response: InvitationResponse): CreateInvitationRespons
   };
 }
 
+function unwrapInvitationPreview(
+  response: InvitationPreviewResponse,
+): InvitationPreview {
+  const record = response as {
+    invitation?: Partial<Invitation> | null;
+    organization?: { name?: string | null } | null;
+    data?: Partial<InvitationPreview> | null;
+    organizationName?: string | null;
+    email?: string | null;
+    role?: OrganizationRole | string | null;
+  };
+  const data = record.data ?? null;
+  const invitation = record.invitation ?? null;
+  const organizationName =
+    record.organizationName ?? record.organization?.name ?? data?.organizationName;
+  const email = record.email ?? invitation?.email ?? data?.email;
+  const role = record.role ?? invitation?.role ?? data?.role;
+
+  if (!organizationName || !email || !role) {
+    throw new Error("La API no devolvio la vista previa de la invitacion");
+  }
+
+  return {
+    organizationName,
+    email,
+    role,
+  };
+}
+
 export async function getInvitations(
   organizationId: string,
   accessToken?: string | null,
@@ -120,6 +168,14 @@ export async function createInvitation(
   );
 
   return unwrapInvitation(response);
+}
+
+export async function getInvitationPreview(token: string) {
+  const response = await apiFetch<InvitationPreviewResponse>(
+    `/invitations/preview/${encodeURIComponent(token)}`,
+  );
+
+  return unwrapInvitationPreview(response);
 }
 
 export async function acceptInvitation(

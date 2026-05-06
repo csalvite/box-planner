@@ -1,12 +1,37 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { OrganizationOnboarding } from "@/components/organization-onboarding";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
+import {
+  getPendingInviteRedirect,
+  isInviteRedirect,
+} from "@/lib/invite-redirect";
 
 export function OrganizationGate({ children }: { children: ReactNode }) {
   const { organizations, loading, error, refetch } = useActiveOrganization();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [pendingInviteRedirect, setPendingInviteRedirect] = useState<
+    string | null
+  >(() => getPendingInviteRedirect());
+
+  useEffect(() => {
+    setPendingInviteRedirect(getPendingInviteRedirect());
+  }, []);
+
+  useEffect(() => {
+    if (
+      !loading &&
+      organizations.length === 0 &&
+      isInviteRedirect(pendingInviteRedirect)
+    ) {
+      router.replace(pendingInviteRedirect);
+    }
+  }, [loading, organizations.length, pendingInviteRedirect, router]);
 
   if (loading) {
     return (
@@ -27,6 +52,17 @@ export function OrganizationGate({ children }: { children: ReactNode }) {
           <Button onClick={() => void refetch()}>reintentar</Button>
         </div>
       </main>
+    );
+  }
+
+  if (
+    organizations.length === 0 &&
+    (pathname === "/invite" || isInviteRedirect(pendingInviteRedirect))
+  ) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        cargando invitación...
+      </div>
     );
   }
 

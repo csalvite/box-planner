@@ -1,18 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, LogOut, MailCheck } from "lucide-react";
+import { Building2, CheckCircle2, LogOut, MailCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
-import { useAcceptInvitation } from "@/hooks/use-invitations";
+import {
+  useAcceptInvitation,
+  useInvitationPreview,
+} from "@/hooks/use-invitations";
 import { organizationsQueryKey } from "@/hooks/use-organizations";
+import {
+  clearPendingInviteRedirect,
+  setPendingInviteRedirect,
+} from "@/lib/invite-redirect";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+
+function getInviteRoleLabel(role?: string | null) {
+  const normalizedRole = role?.toUpperCase();
+
+  if (normalizedRole === "VIEWER") {
+    return "alumno";
+  }
+
+  if (normalizedRole === "COACH") {
+    return "coach";
+  }
+
+  return normalizedRole?.toLowerCase() ?? "miembro";
+}
 
 export function InviteContent() {
   const router = useRouter();
@@ -28,6 +49,15 @@ export function InviteContent() {
     ? `/invite?token=${encodeURIComponent(token)}`
     : "/invite";
   const loginHref = `/login?redirect=${encodeURIComponent(invitePath)}`;
+  const previewQuery = useInvitationPreview(token);
+  const preview = previewQuery.data;
+  const roleLabel = getInviteRoleLabel(preview?.role);
+
+  useEffect(() => {
+    if (token) {
+      setPendingInviteRedirect(invitePath);
+    }
+  }, [invitePath, token]);
 
   const handleUseOtherAccount = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -61,6 +91,7 @@ export function InviteContent() {
       await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       await queryClient.invalidateQueries({ queryKey: organizationsQueryKey });
       await refetch();
+      clearPendingInviteRedirect();
       setAccepted(true);
       router.replace("/");
     } catch {
@@ -104,7 +135,62 @@ export function InviteContent() {
           </div>
         )}
 
-        {token && !session && (
+        {token && previewQuery.isLoading && (
+          <div className="mt-4 rounded-md border border-border/70 bg-background/55 px-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              cargando datos de la invitación...
+            </p>
+          </div>
+        )}
+
+        {token && previewQuery.error && (
+          <div className="mt-4 space-y-4">
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+              no pudimos cargar esta invitación
+            </p>
+            <Button asChild className="w-full">
+              <Link href="/login">ir a login</Link>
+            </Button>
+          </div>
+        )}
+
+        {token && preview && (
+          <div className="mt-4 space-y-3 text-left">
+            <div className="rounded-md border border-primary/30 bg-primary/10 px-3 py-3">
+              <p className="text-sm font-semibold text-primary">
+                te han invitado como {roleLabel}
+              </p>
+              {!session ? (
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  crea tu cuenta para unirte a esta organización
+                </p>
+              ) : null}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-md border border-border/70 bg-background/55 px-3 py-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Building2 className="h-3.5 w-3.5" />
+                  organización
+                </div>
+                <p className="mt-1 break-words text-sm font-semibold text-foreground">
+                  {preview.organizationName}
+                </p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-background/55 px-3 py-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <UserRound className="h-3.5 w-3.5" />
+                  invitado
+                </div>
+                <p className="mt-1 break-all text-sm font-semibold text-foreground">
+                  {preview.email}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{roleLabel}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {token && preview && !session && (
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-muted-foreground">
               inicia sesión o crea una cuenta para aceptar esta invitación.
@@ -115,7 +201,7 @@ export function InviteContent() {
           </div>
         )}
 
-        {token && session && (
+        {token && preview && session && (
           <div className="mt-4 space-y-4">
             <div className="rounded-md border border-border/70 bg-background/55 px-3 py-3 text-left">
               <p className="text-xs font-medium uppercase text-muted-foreground">

@@ -11,6 +11,11 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useAuth } from "@/components/providers/auth-provider";
+import {
+  getSafeRedirect,
+  isInviteRedirect,
+  setPendingInviteRedirect,
+} from "@/lib/invite-redirect";
 
 type AuthMode = "login" | "register";
 
@@ -31,14 +36,6 @@ function getAuthErrorMessage(message: string) {
   return message;
 }
 
-function getSafeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-
-  return value;
-}
-
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,6 +54,12 @@ export function LoginForm() {
       router.replace(redirectPath);
     }
   }, [authLoading, redirectPath, router, session]);
+
+  useEffect(() => {
+    if (isInviteRedirect(redirectPath)) {
+      setPendingInviteRedirect(redirectPath);
+    }
+  }, [redirectPath]);
 
   useEffect(() => {
     const confirmed = searchParams.get("confirmed");
@@ -136,7 +139,11 @@ export function LoginForm() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback${
+            isInviteRedirect(redirectPath)
+              ? `?redirect=${encodeURIComponent(redirectPath)}`
+              : ""
+          }`,
         },
       })
       .then(({ data, error: signUpError }) => {

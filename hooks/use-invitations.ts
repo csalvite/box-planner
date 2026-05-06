@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   acceptInvitation,
   createInvitation,
+  getInvitationPreview,
   getInvitations,
   type AcceptInvitationInput,
   type CreateInvitationInput,
@@ -14,6 +15,9 @@ import { organizationsQueryKey } from "@/hooks/use-organizations";
 
 export const invitationsQueryKey = (organizationId?: string | null) =>
   ["invitations", organizationId] as const;
+
+export const invitationPreviewQueryKey = (token?: string | null) =>
+  ["invitation-preview", token] as const;
 
 export function useInvitations(organizationId?: string | null) {
   const { accessToken } = useAuth();
@@ -57,6 +61,14 @@ export function useCreateInvitation(organizationId?: string | null) {
         },
       );
     },
+  });
+}
+
+export function useInvitationPreview(token?: string | null) {
+  return useQuery({
+    queryKey: invitationPreviewQueryKey(token),
+    queryFn: () => getInvitationPreview(token as string),
+    enabled: Boolean(token),
   });
 }
 
