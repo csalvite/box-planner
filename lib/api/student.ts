@@ -51,6 +51,15 @@ export interface StudentNextSession {
   date?: string | Date | null;
   training?: StudentTraining | null;
   blocks?: StudentSessionBlock[];
+  attendanceCount?: number | null;
+  attendeesCount?: number | null;
+  attendancesCount?: number | null;
+  isAttending?: boolean | null;
+  attending?: boolean | null;
+  _count?: {
+    attendances?: number;
+    attendees?: number;
+  };
 }
 
 export interface StudentStats {

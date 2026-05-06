@@ -10,10 +10,15 @@ import {
   Layers,
   Trophy,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
+import {
+  useMarkAttendance,
+  useRemoveAttendance,
+} from "@/hooks/use-class-sessions";
 import { useStudentNextSession, useStudentStats } from "@/hooks/use-student";
 import type {
   StudentExercise,
@@ -86,6 +91,21 @@ function getTrainingTitle(session: StudentNextSession) {
 
 function getTrainingDuration(session: StudentNextSession) {
   return session.training?.totalDurationSec ?? 0;
+}
+
+function getAttendanceCount(session: StudentNextSession) {
+  return (
+    session.attendanceCount ??
+    session.attendeesCount ??
+    session.attendancesCount ??
+    session._count?.attendances ??
+    session._count?.attendees ??
+    0
+  );
+}
+
+function isStudentAttending(session: StudentNextSession) {
+  return Boolean(session.isAttending ?? session.attending);
 }
 
 function getOrderedBlocks(session: StudentNextSession) {
@@ -248,6 +268,8 @@ export function StudentDashboardContent() {
   const { activeOrganizationId } = useActiveOrganization();
   const nextSessionQuery = useStudentNextSession(activeOrganizationId);
   const statsQuery = useStudentStats(activeOrganizationId);
+  const markAttendance = useMarkAttendance(activeOrganizationId);
+  const removeAttendance = useRemoveAttendance(activeOrganizationId);
   const session = nextSessionQuery.data ?? null;
   const stats = statsQuery.data;
   const displayName =
@@ -292,6 +314,54 @@ export function StudentDashboardContent() {
 
   const dateTime = session ? formatDateTime(getSessionDate(session)) : null;
   const blocks = session ? getOrderedBlocks(session) : [];
+  const attendanceCount = session ? getAttendanceCount(session) : 0;
+  const attending = session ? isStudentAttending(session) : false;
+
+  const handleMarkAttendance = async () => {
+    if (!session?.id) {
+      toast.error("no pudimos identificar la clase");
+      return;
+    }
+
+    const markPromise = markAttendance.mutateAsync(session.id);
+
+    toast.promise(markPromise, {
+      loading: "confirmando asistencia...",
+      success: "asistencia confirmada",
+      error: "no se pudo confirmar asistencia",
+    });
+
+    try {
+      await markPromise;
+      await nextSessionQuery.refetch();
+      await statsQuery.refetch();
+    } catch {
+      // react query keeps the detailed error for the button state
+    }
+  };
+
+  const handleRemoveAttendance = async () => {
+    if (!session?.id) {
+      toast.error("no pudimos identificar la clase");
+      return;
+    }
+
+    const removePromise = removeAttendance.mutateAsync(session.id);
+
+    toast.promise(removePromise, {
+      loading: "cancelando asistencia...",
+      success: "asistencia cancelada",
+      error: "no se pudo cancelar asistencia",
+    });
+
+    try {
+      await removePromise;
+      await nextSessionQuery.refetch();
+      await statsQuery.refetch();
+    } catch {
+      // react query keeps the detailed error for the button state
+    }
+  };
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -396,6 +466,15 @@ export function StudentDashboardContent() {
                       {formatMinutes(getTrainingDuration(session))} min
                     </p>
                   </div>
+                  <div className="col-span-2 rounded-md border border-border/70 bg-background/45 px-3 py-3">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Trophy className="h-3.5 w-3.5" />
+                      asistentes
+                    </div>
+                    <p className="mt-1 text-lg font-semibold text-foreground">
+                      {attendanceCount}
+                    </p>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -426,6 +505,48 @@ export function StudentDashboardContent() {
           </section>
 
           <aside className="space-y-4 xl:sticky xl:top-4">
+            <Card className="border-primary/25 bg-card/70 p-5">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold text-foreground">
+                    asistencia
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {attending
+                      ? "asistencia confirmada"
+                      : "confirma si vas a venir a esta clase."}
+                  </p>
+                </div>
+
+                {attending ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="w-full bg-transparent"
+                    onClick={() => void handleRemoveAttendance()}
+                    disabled={removeAttendance.isPending || !session.id}
+                  >
+                    {removeAttendance.isPending
+                      ? "cancelando..."
+                      : "cancelar asistencia"}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="w-full"
+                    onClick={() => void handleMarkAttendance()}
+                    disabled={markAttendance.isPending || !session.id}
+                  >
+                    {markAttendance.isPending
+                      ? "confirmando..."
+                      : "confirmar asistencia"}
+                  </Button>
+                )}
+              </div>
+            </Card>
+
             <Card className="border-border/80 bg-background/45 p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">

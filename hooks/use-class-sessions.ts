@@ -5,6 +5,8 @@ import {
   createClassSession,
   deleteClassSession,
   getClassSessions,
+  markAttendance,
+  removeAttendance,
   updateClassSession,
   type ClassSession,
   type CreateClassSessionInput,
@@ -92,6 +94,42 @@ export function useDeleteClassSession(organizationId?: string | null) {
       );
       await queryClient.invalidateQueries({
         queryKey: classSessionsQueryKey(organizationId),
+      });
+    },
+  });
+}
+
+export function useMarkAttendance(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (classSessionId: string) =>
+      markAttendance(organizationId as string, classSessionId, accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: classSessionsQueryKey(organizationId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["student", organizationId],
+      });
+    },
+  });
+}
+
+export function useRemoveAttendance(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (classSessionId: string) =>
+      removeAttendance(organizationId as string, classSessionId, accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: classSessionsQueryKey(organizationId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["student", organizationId],
       });
     },
   });

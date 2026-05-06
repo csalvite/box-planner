@@ -20,6 +20,15 @@ export interface ClassSession {
   endsAt?: string | Date | null;
   status?: ClassSessionStatus | null;
   notes?: string | null;
+  attendanceCount?: number | null;
+  attendeesCount?: number | null;
+  attendancesCount?: number | null;
+  isAttending?: boolean | null;
+  attending?: boolean | null;
+  _count?: {
+    attendances?: number;
+    attendees?: number;
+  };
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -133,4 +142,36 @@ export async function deleteClassSession(
       method: "DELETE",
     },
   );
+}
+
+export async function markAttendance(
+  organizationId: string,
+  classSessionId: string,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionResponse>(
+    `/organizations/${organizationId}/class-sessions/${classSessionId}/attendance`,
+    {
+      accessToken,
+      method: "POST",
+    },
+  );
+
+  return unwrapClassSession(response);
+}
+
+export async function removeAttendance(
+  organizationId: string,
+  classSessionId: string,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionResponse>(
+    `/organizations/${organizationId}/class-sessions/${classSessionId}/attendance`,
+    {
+      accessToken,
+      method: "DELETE",
+    },
+  );
+
+  return unwrapClassSession(response);
 }

@@ -7,13 +7,22 @@ import {
   CalendarClock,
   Clock,
   FileText,
+  Pencil,
   Plus,
   Trash2,
   Dumbbell,
+  UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,6 +38,7 @@ import {
   useClassSessions,
   useCreateClassSession,
   useDeleteClassSession,
+  useUpdateClassSession,
 } from "@/hooks/use-class-sessions";
 import { useTrainings } from "@/hooks/use-trainings";
 import type { ClassSession } from "@/lib/api/class-sessions";
@@ -65,6 +75,21 @@ const statusColors: Record<string, string> = {
 
 function toDateTimeLocalValue(value: string) {
   return value ? new Date(value).toISOString() : "";
+}
+
+function toDateTimeInputValue(value?: string | Date | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
 }
 
 function formatSessionDate(value: string | Date) {
@@ -118,13 +143,28 @@ function getTrainingTitle(session: ClassSession) {
   return session.training?.title ?? "clase tipo pendiente";
 }
 
+function getAttendanceCount(session: ClassSession) {
+  return (
+    session.attendanceCount ??
+    session.attendeesCount ??
+    session.attendancesCount ??
+    session._count?.attendances ??
+    session._count?.attendees ??
+    0
+  );
+}
+
 function ClassSessionCard({
   session,
   isDeleting,
+  canEdit,
+  onEdit,
   onDelete,
 }: {
   session: ClassSession;
   isDeleting: boolean;
+  canEdit: boolean;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const dateTime = formatSessionDate(session.startsAt);
@@ -168,6 +208,10 @@ function ClassSessionCard({
                 <Dumbbell className="h-4 w-4" />
                 {getTrainingTitle(session)}
               </span>
+              <span className="flex items-center gap-1.5">
+                <UsersRound className="h-4 w-4" />
+                {getAttendanceCount(session)} apuntados
+              </span>
             </div>
           </div>
 
@@ -179,15 +223,29 @@ function ClassSessionCard({
           ) : null}
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          className="self-end text-muted-foreground hover:text-destructive sm:self-start"
-          disabled={isDeleting}
-          onClick={onDelete}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {canEdit ? (
+          <div className="grid gap-2 sm:min-w-36">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={onEdit}
+            >
+              <Pencil className="h-4 w-4" />
+              editar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-transparent text-destructive hover:text-destructive"
+              disabled={isDeleting}
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4" />
+              borrar
+            </Button>
+          </div>
+        ) : null}
       </div>
     </Card>
   );
@@ -200,9 +258,14 @@ export function ClassesContent() {
   const classSessionsQuery = useClassSessions(classesOrganizationId);
   const trainingsQuery = useTrainings(classesOrganizationId);
   const createClassSession = useCreateClassSession(classesOrganizationId);
+  const updateClassSession = useUpdateClassSession(classesOrganizationId);
   const deleteClassSession = useDeleteClassSession(classesOrganizationId);
   const [form, setForm] = useState<ClassSessionFormState>(initialForm);
+  const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
+  const [editForm, setEditForm] = useState<ClassSessionFormState>(initialForm);
+  const [editStatus, setEditStatus] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const trainings = trainingsQuery.data ?? [];
   const sessions = useMemo(
@@ -269,13 +332,79 @@ export function ClassesContent() {
     }
   };
 
+  const openEditDialog = (session: ClassSession) => {
+    setEditingSession(session);
+    setEditForm({
+      title: session.title,
+      trainingId: session.trainingId ?? session.training?.id ?? "",
+      startsAt: toDateTimeInputValue(session.startsAt),
+      endsAt: toDateTimeInputValue(session.endsAt),
+      notes: session.notes ?? "",
+    });
+    setEditStatus(session.status ? normalizeStatus(session.status) : "");
+    setEditError(null);
+  };
+
+  const handleEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setEditError(null);
+
+    if (!editingSession) {
+      return;
+    }
+
+    if (!editForm.title.trim()) {
+      setEditError("El titulo es obligatorio.");
+      return;
+    }
+
+    if (!editForm.trainingId) {
+      setEditError("Selecciona una clase tipo.");
+      return;
+    }
+
+    if (!editForm.startsAt) {
+      setEditError("Selecciona fecha y hora de inicio.");
+      return;
+    }
+
+    try {
+      const updatePromise = updateClassSession.mutateAsync({
+        classSessionId: editingSession.id,
+        input: {
+          title: editForm.title.trim(),
+          trainingId: editForm.trainingId,
+          startsAt: toDateTimeLocalValue(editForm.startsAt),
+          endsAt: editForm.endsAt
+            ? toDateTimeLocalValue(editForm.endsAt)
+            : undefined,
+          notes: editForm.notes.trim() || undefined,
+          status: editStatus || undefined,
+        },
+      });
+
+      toast.promise(updatePromise, {
+        loading: "actualizando clase...",
+        success: "clase actualizada",
+        error: "no se pudo actualizar la clase",
+      });
+
+      await updatePromise;
+      setEditingSession(null);
+    } catch (error) {
+      setEditError(
+        error instanceof Error ? error.message : "No se pudo actualizar la clase.",
+      );
+    }
+  };
+
   const handleDelete = async (classSessionId: string) => {
     const deletePromise = deleteClassSession.mutateAsync(classSessionId);
 
     toast.promise(deletePromise, {
       loading: "borrando clase...",
-      success: "clase borrada",
-      error: "no se pudo borrar la clase",
+      success: "clase cancelada/borrada",
+      error: "no se pudo cancelar o borrar la clase",
     });
 
     try {
@@ -303,6 +432,132 @@ export function ClassesContent() {
           </Link>
         </Button>
       </section>
+
+      <Dialog
+        open={Boolean(editingSession)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingSession(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>editar clase</DialogTitle>
+            <DialogDescription>
+              ajusta horario, clase tipo, notas o estado de la sesion.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-class-title">titulo</Label>
+              <Input
+                id="edit-class-title"
+                value={editForm.title}
+                onChange={(event) =>
+                  setEditForm({ ...editForm, title: event.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-class-training">clase tipo</Label>
+              <Select
+                value={editForm.trainingId}
+                onValueChange={(trainingId) =>
+                  setEditForm({ ...editForm, trainingId })
+                }
+                disabled={trainingsQuery.isLoading || trainingsQuery.isError}
+              >
+                <SelectTrigger id="edit-class-training" className="w-full">
+                  <SelectValue placeholder="selecciona clase tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trainings.map((training) => (
+                    <SelectItem key={training.id} value={training.id}>
+                      {training.title} -{" "}
+                      {Math.round(training.totalDurationSec / 60)} min
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-class-start">inicio</Label>
+                <Input
+                  id="edit-class-start"
+                  type="datetime-local"
+                  value={editForm.startsAt}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, startsAt: event.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-class-end">fin opcional</Label>
+                <Input
+                  id="edit-class-end"
+                  type="datetime-local"
+                  value={editForm.endsAt}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, endsAt: event.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-class-status">estado</Label>
+              <Select value={editStatus} onValueChange={setEditStatus}>
+                <SelectTrigger id="edit-class-status" className="w-full">
+                  <SelectValue placeholder="selecciona estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SCHEDULED">programada</SelectItem>
+                  <SelectItem value="CANCELLED">cancelada</SelectItem>
+                  <SelectItem value="COMPLETED">completada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-class-notes">notas opcionales</Label>
+              <Textarea
+                id="edit-class-notes"
+                rows={3}
+                value={editForm.notes}
+                onChange={(event) =>
+                  setEditForm({ ...editForm, notes: event.target.value })
+                }
+              />
+            </div>
+
+            {editError ? (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {editError}
+              </p>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent"
+                onClick={() => setEditingSession(null)}
+              >
+                cancelar
+              </Button>
+              <Button type="submit" disabled={updateClassSession.isPending}>
+                {updateClassSession.isPending ? "guardando..." : "guardar cambios"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] xl:items-start">
         <Card
@@ -464,6 +719,8 @@ export function ClassesContent() {
                   deleteClassSession.isPending &&
                   deleteClassSession.variables === session.id
                 }
+                canEdit={canManageClasses}
+                onEdit={() => openEditDialog(session)}
                 onDelete={() => void handleDelete(session.id)}
               />
             ))}
