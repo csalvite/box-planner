@@ -23,6 +23,7 @@ import {
   setPendingInviteRedirect,
 } from "@/lib/invite-redirect";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { cn } from "@/lib/utils";
 
 function getInviteRoleLabel(role?: string | null) {
   const normalizedRole = role?.toUpperCase();
@@ -36,6 +37,27 @@ function getInviteRoleLabel(role?: string | null) {
   }
 
   return normalizedRole?.toLowerCase() ?? "miembro";
+}
+
+function normalizeEmail(email?: string | null) {
+  return email?.trim().toLowerCase() ?? "";
+}
+
+function getAcceptInvitationErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+
+  if (
+    message.includes("email") &&
+    (message.includes("match") ||
+      message.includes("mismatch") ||
+      message.includes("coincid") ||
+      message.includes("distint") ||
+      message.includes("diferent"))
+  ) {
+    return "esta invitación pertenece a otra cuenta. usa la cuenta invitada para aceptarla";
+  }
+
+  return "no se pudo aceptar";
 }
 
 export function InviteContent() {
@@ -61,6 +83,16 @@ export function InviteContent() {
   const preview = previewQuery.data;
   const roleLabel = getInviteRoleLabel(preview?.role);
   const invitationAccepted = preview?.status?.toUpperCase() === "ACCEPTED";
+  const sessionEmail = user?.email ?? session?.user.email ?? null;
+  const emailMismatch = Boolean(
+    preview?.email &&
+      sessionEmail &&
+      normalizeEmail(preview.email) !== normalizeEmail(sessionEmail),
+  );
+  const mismatchMessage =
+    preview?.email && sessionEmail && emailMismatch
+      ? `esta invitación es para ${preview.email}, pero estás conectado como ${sessionEmail}`
+      : null;
 
   useEffect(() => {
     if (token) {
@@ -138,12 +170,17 @@ export function InviteContent() {
       return;
     }
 
+    if (mismatchMessage) {
+      toast.warning(mismatchMessage);
+      return;
+    }
+
     const acceptPromise = acceptInvitation.mutateAsync({ token });
 
     toast.promise(acceptPromise, {
       loading: "aceptando invitacion...",
       success: "invitación aceptada",
-      error: "no se pudo aceptar",
+      error: getAcceptInvitationErrorMessage,
     });
 
     try {
@@ -356,25 +393,35 @@ export function InviteContent() {
                 cuenta actual
               </p>
               <p className="mt-1 break-all text-sm font-semibold text-foreground">
-                {user?.email ?? "email no disponible"}
+                {sessionEmail ?? "email no disponible"}
               </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                vas a aceptar esta invitación con esta cuenta
-              </p>
+              {!emailMismatch ? (
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  vas a aceptar esta invitación con esta cuenta
+                </p>
+              ) : null}
             </div>
-            <Button
-              size="lg"
-              className="w-full"
-              onClick={handleAccept}
-              disabled={acceptInvitation.isPending || switchingAccount || accepted}
-            >
-              {acceptInvitation.isPending ? "aceptando..." : "aceptar invitación"}
-            </Button>
+
+            {mismatchMessage ? (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-3 text-left text-sm leading-6 text-destructive">
+                {mismatchMessage}
+              </p>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={handleAccept}
+                disabled={acceptInvitation.isPending || switchingAccount || accepted}
+              >
+                {acceptInvitation.isPending ? "aceptando..." : "aceptar invitación"}
+              </Button>
+            )}
+
             <Button
               type="button"
-              variant="outline"
+              variant={emailMismatch ? "default" : "outline"}
               size="lg"
-              className="w-full bg-transparent"
+              className={cn("w-full", !emailMismatch && "bg-transparent")}
               onClick={handleUseOtherAccount}
               disabled={acceptInvitation.isPending || switchingAccount || accepted}
             >
