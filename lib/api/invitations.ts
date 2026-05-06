@@ -17,6 +17,7 @@ export interface Invitation {
   role: OrganizationRole | string;
   status?: InvitationStatus | null;
   token?: string | null;
+  inviteUrl?: string | null;
   acceptedAt?: string | Date | null;
   expiresAt?: string | Date | null;
   createdAt?: string | Date | null;
@@ -39,6 +40,12 @@ export interface AcceptInvitationResponse {
   };
 }
 
+export interface CreateInvitationResponse {
+  invitation: Invitation;
+  inviteUrl?: string | null;
+  emailSent: boolean;
+}
+
 type InvitationsResponse =
   | Invitation[]
   | {
@@ -51,6 +58,8 @@ type InvitationResponse =
   | {
       invitation?: Invitation;
       data?: Invitation;
+      inviteUrl?: string | null;
+      emailSent?: boolean;
     };
 
 function unwrapInvitations(response: InvitationsResponse) {
@@ -61,18 +70,27 @@ function unwrapInvitations(response: InvitationsResponse) {
   return response.invitations ?? response.data ?? [];
 }
 
-function unwrapInvitation(response: InvitationResponse) {
+function unwrapInvitation(response: InvitationResponse): CreateInvitationResponse {
   if ("id" in response) {
-    return response;
+    return {
+      invitation: response,
+      inviteUrl: response.inviteUrl ?? null,
+      emailSent: false,
+    };
   }
 
   const invitation = response.invitation ?? response.data ?? null;
+  const inviteUrl = response.inviteUrl ?? invitation?.inviteUrl ?? null;
 
   if (!invitation) {
     throw new Error("La API no devolvio la invitacion");
   }
 
-  return invitation;
+  return {
+    invitation: inviteUrl ? { ...invitation, inviteUrl } : invitation,
+    inviteUrl,
+    emailSent: Boolean(response.emailSent),
+  };
 }
 
 export async function getInvitations(

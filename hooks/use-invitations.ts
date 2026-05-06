@@ -32,14 +32,30 @@ export function useCreateInvitation(organizationId?: string | null) {
   return useMutation({
     mutationFn: (input: CreateInvitationInput) =>
       createInvitation(organizationId as string, input, accessToken),
-    onSuccess: async (invitation) => {
+    onSuccess: async (result) => {
+      const invitation = result.invitation;
+
       queryClient.setQueryData<Invitation[]>(
         invitationsQueryKey(organizationId),
-        (invitations = []) => [invitation, ...invitations],
+        (invitations = []) => [
+          invitation,
+          ...invitations.filter((item) => item.id !== invitation.id),
+        ],
       );
       await queryClient.invalidateQueries({
         queryKey: invitationsQueryKey(organizationId),
       });
+      queryClient.setQueryData<Invitation[]>(
+        invitationsQueryKey(organizationId),
+        (invitations = []) => {
+          const exists = invitations.some((item) => item.id === invitation.id);
+          const merged = invitations.map((item) =>
+            item.id === invitation.id ? { ...item, ...invitation } : item,
+          );
+
+          return exists ? merged : [invitation, ...merged];
+        },
+      );
     },
   });
 }

@@ -79,13 +79,17 @@ function buildInviteLink(token?: string | null) {
   return `${window.location.origin}${path}`;
 }
 
+function getInviteLink(invitation: Invitation) {
+  return invitation.inviteUrl ?? buildInviteLink(invitation.token);
+}
+
 async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
 }
 
 function InvitationCard({ invitation }: { invitation: Invitation }) {
   const status = normalizeStatus(invitation.status);
-  const inviteLink = buildInviteLink(invitation.token);
+  const inviteLink = getInviteLink(invitation);
   const createdAt = formatDate(invitation.createdAt);
   const acceptedAt = formatDate(invitation.acceptedAt);
 
@@ -180,6 +184,7 @@ export function MembersContent() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
+    let createToastId: string | number | undefined;
 
     if (!email.trim()) {
       setFormError("El email es obligatorio.");
@@ -191,24 +196,21 @@ export function MembersContent() {
         email: email.trim(),
         role,
       });
+      createToastId = toast.loading("creando invitacion...");
+      const result = await createPromise;
 
-      toast.promise(createPromise, {
-        loading: "creando invitacion...",
-        success: "invitacion creada",
-        error: "no se pudo crear la invitacion",
-      });
-
-      const invitation = await createPromise;
-      const inviteLink = buildInviteLink(invitation.token);
-
-      if (inviteLink) {
-        await copyText(inviteLink);
-        toast.success("enlace copiado");
+      if (result.emailSent) {
+        toast.success("invitación enviada por correo", { id: createToastId });
+      } else {
+        toast.warning("no se envió el correo, copia el enlace", {
+          id: createToastId,
+        });
       }
 
       setEmail("");
       setRole("VIEWER");
     } catch (error) {
+      toast.error("no se pudo crear la invitacion", { id: createToastId });
       setFormError(
         error instanceof Error ? error.message : "No se pudo crear la invitacion.",
       );
@@ -235,7 +237,7 @@ export function MembersContent() {
                   nueva invitacion
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  para alumnos usa el rol viewer.
+                  si el correo no llega, puedes copiar y enviar este enlace manualmente.
                 </p>
               </div>
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
