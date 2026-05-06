@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { LogoutButton } from "@/components/logout-button"
-import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
+import { UserNavSummary } from "@/components/user-nav-summary"
 import { useAppTranslation } from "@/hooks/use-app-translation"
 import { useActiveOrganization } from "@/components/providers/organization-provider"
 import { isStaffOrganization } from "@/lib/organization-role"
@@ -48,8 +48,8 @@ export function MobileNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card md:hidden">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
-        <ActiveOrganizationDisplay className="flex-1" />
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <UserNavSummary compact className="flex-1 border-0 bg-transparent p-0" />
         <div className="flex shrink-0 gap-2">
           <LogoutButton compact />
           <LanguageSwitcher />

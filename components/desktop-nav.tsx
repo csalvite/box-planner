@@ -13,6 +13,7 @@ import {
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { LogoutButton } from "@/components/logout-button"
 import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
+import { UserNavSummary } from "@/components/user-nav-summary"
 import { useAppTranslation } from "@/hooks/use-app-translation"
 import { cn } from "@/lib/utils"
 import { useActiveOrganization } from "@/components/providers/organization-provider"
@@ -81,6 +82,7 @@ export function DesktopNav() {
         </nav>
 
         <div className="space-y-2 border-t border-border p-4">
+          <UserNavSummary />
           <LogoutButton />
           <LanguageSwitcher />
         </div>
