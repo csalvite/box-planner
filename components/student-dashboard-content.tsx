@@ -17,7 +17,6 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import {
   useMarkAttendance,
-  useRemoveAttendance,
 } from "@/hooks/use-class-sessions";
 import { useStudentNextSession, useStudentStats } from "@/hooks/use-student";
 import type {
@@ -276,7 +275,6 @@ export function StudentDashboardContent() {
   const nextSessionQuery = useStudentNextSession(activeOrganizationId);
   const statsQuery = useStudentStats(activeOrganizationId);
   const markAttendance = useMarkAttendance(activeOrganizationId);
-  const removeAttendance = useRemoveAttendance(activeOrganizationId);
   const session = nextSessionQuery.data ?? null;
   const stats = statsQuery.data;
   const displayName =
@@ -340,29 +338,6 @@ export function StudentDashboardContent() {
 
     try {
       await markPromise;
-      await nextSessionQuery.refetch();
-      await statsQuery.refetch();
-    } catch {
-      // react query keeps the detailed error for the button state
-    }
-  };
-
-  const handleRemoveAttendance = async () => {
-    if (!session?.id) {
-      toast.error("no pudimos identificar la clase");
-      return;
-    }
-
-    const removePromise = removeAttendance.mutateAsync(session.id);
-
-    toast.promise(removePromise, {
-      loading: "cancelando asistencia...",
-      success: "asistencia cancelada",
-      error: "no se pudo cancelar asistencia",
-    });
-
-    try {
-      await removePromise;
       await nextSessionQuery.refetch();
       await statsQuery.refetch();
     } catch {
@@ -528,15 +503,11 @@ export function StudentDashboardContent() {
                 {attending ? (
                   <Button
                     type="button"
-                    variant="outline"
                     size="lg"
-                    className="w-full bg-transparent"
-                    onClick={() => void handleRemoveAttendance()}
-                    disabled={removeAttendance.isPending || !session.id}
+                    className="w-full"
+                    disabled
                   >
-                    {removeAttendance.isPending
-                      ? "cancelando..."
-                      : "cancelar asistencia"}
+                    asistencia confirmada
                   </Button>
                 ) : (
                   <Button

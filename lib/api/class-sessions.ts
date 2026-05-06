@@ -63,6 +63,35 @@ type ClassSessionResponse =
       data?: ClassSession;
     };
 
+export interface ClassSessionAttendanceResult {
+  attendance?: unknown;
+  classSession?: ClassSession | null;
+  attendanceCount?: number | null;
+  hasCurrentUserAttendance?: boolean | null;
+}
+
+type ClassSessionAttendanceResponse =
+  | ClassSession
+  | ClassSessionAttendanceResult
+  | {
+      data?:
+        | ClassSession
+        | ClassSessionAttendanceResult
+        | {
+            classSession?: ClassSession | null;
+            session?: ClassSession | null;
+            attendance?: unknown;
+            attendanceCount?: number | null;
+            hasCurrentUserAttendance?: boolean | null;
+          }
+        | null;
+      classSession?: ClassSession | null;
+      session?: ClassSession | null;
+      attendance?: unknown;
+      attendanceCount?: number | null;
+      hasCurrentUserAttendance?: boolean | null;
+    };
+
 function unwrapClassSessions(response: ClassSessionsResponse) {
   if (Array.isArray(response)) {
     return response;
@@ -98,6 +127,67 @@ function unwrapClassSession(response: ClassSessionResponse) {
   }
 
   return session;
+}
+
+function getCountFromSession(session?: ClassSession | null) {
+  return (
+    session?.attendanceCount ??
+    session?.attendeesCount ??
+    session?.attendancesCount ??
+    session?._count?.attendances ??
+    session?._count?.attendees ??
+    null
+  );
+}
+
+function unwrapAttendanceResult(
+  response: ClassSessionAttendanceResponse,
+  hasCurrentUserAttendance: boolean,
+): ClassSessionAttendanceResult {
+  if (response && "id" in response) {
+    return {
+      classSession: response,
+      attendanceCount: getCountFromSession(response),
+      hasCurrentUserAttendance:
+        response.hasCurrentUserAttendance ??
+        response.isAttending ??
+        response.attending ??
+        hasCurrentUserAttendance,
+    };
+  }
+
+  const wrapped = response as Extract<
+    ClassSessionAttendanceResponse,
+    { data?: unknown }
+  >;
+  const data = wrapped.data;
+  const source =
+    data && typeof data === "object" && !("id" in data)
+      ? (data as ClassSessionAttendanceResult & {
+          session?: ClassSession | null;
+        })
+      : (wrapped as ClassSessionAttendanceResult & {
+          session?: ClassSession | null;
+        });
+  const classSession =
+    (data && typeof data === "object" && "id" in data
+      ? (data as ClassSession)
+      : null) ??
+    source.classSession ??
+    source.session ??
+    null;
+
+  return {
+    attendance: source.attendance,
+    classSession,
+    attendanceCount: source.attendanceCount ?? getCountFromSession(classSession),
+    hasCurrentUserAttendance:
+      source.hasCurrentUserAttendance ??
+      classSession?.hasCurrentUserAttendance ??
+      classSession?.isAttending ??
+      classSession?.attending ??
+      hasCurrentUserAttendance,
+  };
 }
 
 export async function getClassSessions(
@@ -166,7 +256,7 @@ export async function markAttendance(
   classSessionId: string,
   accessToken?: string | null,
 ) {
-  const response = await apiFetch<ClassSessionResponse>(
+  const response = await apiFetch<ClassSessionAttendanceResponse>(
     `/organizations/${organizationId}/class-sessions/${classSessionId}/attendance`,
     {
       accessToken,
@@ -174,7 +264,7 @@ export async function markAttendance(
     },
   );
 
-  return unwrapClassSession(response);
+  return unwrapAttendanceResult(response, true);
 }
 
 export async function removeAttendance(
@@ -182,7 +272,7 @@ export async function removeAttendance(
   classSessionId: string,
   accessToken?: string | null,
 ) {
-  const response = await apiFetch<ClassSessionResponse>(
+  const response = await apiFetch<ClassSessionAttendanceResponse>(
     `/organizations/${organizationId}/class-sessions/${classSessionId}/attendance`,
     {
       accessToken,
@@ -190,5 +280,5 @@ export async function removeAttendance(
     },
   );
 
-  return unwrapClassSession(response);
+  return unwrapAttendanceResult(response, false);
 }
