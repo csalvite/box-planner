@@ -154,6 +154,10 @@ function getAttendanceCount(session: ClassSession) {
   );
 }
 
+function getClassSessionsErrorMessage(error: Error) {
+  return `${error.message}. revisa que la organizacion activa tenga permisos y vuelve a intentarlo.`;
+}
+
 function ClassSessionCard({
   session,
   isDeleting,
@@ -696,7 +700,7 @@ export function ClassesContent() {
           {classSessionsQuery.error && (
             <ErrorState
               title="no pudimos cargar las clases"
-              description={classSessionsQuery.error.message}
+              description={getClassSessionsErrorMessage(classSessionsQuery.error)}
               actionLabel="reintentar"
               onAction={() => void classSessionsQuery.refetch()}
               className="min-h-[320px]"

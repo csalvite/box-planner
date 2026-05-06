@@ -40,6 +40,7 @@ export interface StudentTraining {
   notes?: string | null;
   totalDurationSec?: number | null;
   blocks?: StudentSessionBlock[];
+  trainingBlocks?: StudentSessionBlock[];
 }
 
 export interface StudentNextSession {
@@ -54,6 +55,7 @@ export interface StudentNextSession {
   attendanceCount?: number | null;
   attendeesCount?: number | null;
   attendancesCount?: number | null;
+  hasCurrentUserAttendance?: boolean | null;
   isAttending?: boolean | null;
   attending?: boolean | null;
   _count?: {
@@ -109,10 +111,31 @@ function unwrapNextSession(
     const wrapped = response as {
       session?: StudentNextSession | null;
       nextSession?: StudentNextSession | null;
-      data?: StudentNextSession | null;
+      data?:
+        | StudentNextSession
+        | {
+            session?: StudentNextSession | null;
+            nextSession?: StudentNextSession | null;
+          }
+        | null;
     };
 
-    return wrapped.session ?? wrapped.nextSession ?? wrapped.data ?? null;
+    const data = wrapped.data;
+
+    if (
+      data &&
+      typeof data === "object" &&
+      ("session" in data || "nextSession" in data)
+    ) {
+      const nested = data as {
+        session?: StudentNextSession | null;
+        nextSession?: StudentNextSession | null;
+      };
+
+      return nested.session ?? nested.nextSession ?? null;
+    }
+
+    return wrapped.session ?? wrapped.nextSession ?? (data as StudentNextSession | null) ?? null;
   }
 
   return response as StudentNextSession;

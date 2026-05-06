@@ -105,11 +105,18 @@ function getAttendanceCount(session: StudentNextSession) {
 }
 
 function isStudentAttending(session: StudentNextSession) {
-  return Boolean(session.isAttending ?? session.attending);
+  return Boolean(
+    session.hasCurrentUserAttendance ?? session.isAttending ?? session.attending,
+  );
 }
 
 function getOrderedBlocks(session: StudentNextSession) {
-  return [...(session.training?.blocks ?? session.blocks ?? [])].sort(
+  return [
+    ...(session.training?.blocks ??
+      session.training?.trainingBlocks ??
+      session.blocks ??
+      []),
+  ].sort(
     (firstBlock, secondBlock) =>
       (firstBlock.orderIndex ?? 0) - (secondBlock.orderIndex ?? 0),
   );
@@ -496,7 +503,7 @@ export function StudentDashboardContent() {
               ) : (
                 <EmptyState
                   title="la estructura aun no esta publicada"
-                  description="tu entrenador podra completar partes y ejercicios antes de la clase."
+                  description="tu entrenador todavía no añadió partes a esta clase"
                   icon={Layers}
                   className="min-h-[260px]"
                 />

@@ -23,6 +23,7 @@ export interface ClassSession {
   attendanceCount?: number | null;
   attendeesCount?: number | null;
   attendancesCount?: number | null;
+  hasCurrentUserAttendance?: boolean | null;
   isAttending?: boolean | null;
   attending?: boolean | null;
   _count?: {
@@ -51,6 +52,7 @@ type ClassSessionsResponse =
       classSessions?: ClassSession[];
       sessions?: ClassSession[];
       data?: ClassSession[];
+      result?: ClassSession[];
     };
 
 type ClassSessionResponse =
@@ -66,7 +68,22 @@ function unwrapClassSessions(response: ClassSessionsResponse) {
     return response;
   }
 
-  return response.classSessions ?? response.sessions ?? response.data ?? [];
+  const data = response.data;
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && typeof data === "object") {
+    const nested = data as {
+      classSessions?: ClassSession[];
+      sessions?: ClassSession[];
+    };
+
+    return nested.classSessions ?? nested.sessions ?? [];
+  }
+
+  return response.classSessions ?? response.sessions ?? response.result ?? [];
 }
 
 function unwrapClassSession(response: ClassSessionResponse) {
