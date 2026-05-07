@@ -42,7 +42,10 @@ import {
   useUpdateClassSession,
 } from "@/hooks/use-class-sessions";
 import { useTrainings } from "@/hooks/use-trainings";
-import type { ClassSession } from "@/lib/api/class-sessions";
+import type {
+  ClassSession,
+  ClassSessionStatusCode,
+} from "@/lib/api/class-sessions";
 import { isStaffOrganization } from "@/lib/organization-role";
 import { cn } from "@/lib/utils";
 
@@ -63,21 +66,42 @@ const initialForm: ClassSessionFormState = {
 };
 
 const NO_TRAINING_VALUE = "no-training";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const statusLabels: Record<string, string> = {
+const statusLabels: Record<ClassSessionStatusCode, string> = {
   SCHEDULED: "programada",
   CANCELLED: "cancelada",
   COMPLETED: "completada",
 };
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<ClassSessionStatusCode, string> = {
   SCHEDULED: "bg-primary/10 text-primary ring-primary/15",
   CANCELLED: "bg-destructive/10 text-destructive ring-destructive/20",
   COMPLETED: "bg-chart-2/15 text-chart-2 ring-chart-2/20",
 };
 
-function toDateTimeLocalValue(value: string) {
-  return value ? new Date(value).toISOString() : "";
+const statusAliases: Record<string, ClassSessionStatusCode> = {
+  scheduled: "SCHEDULED",
+  programada: "SCHEDULED",
+  cancelled: "CANCELLED",
+  cancelada: "CANCELLED",
+  completed: "COMPLETED",
+  completada: "COMPLETED",
+};
+
+function toIsoDateTime(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
 }
 
 function toDateTimeInputValue(value?: string | Date | null) {
@@ -138,8 +162,11 @@ function formatDuration(startsAt: string | Date, endsAt?: string | Date | null) 
   return `${durationMin} min`;
 }
 
-function normalizeStatus(status?: string | null) {
-  return (status ?? "SCHEDULED").toUpperCase();
+function normalizeStatus(status?: string | null): ClassSessionStatusCode {
+  return (
+    statusAliases[String(status ?? "SCHEDULED").trim().toLowerCase()] ??
+    "SCHEDULED"
+  );
 }
 
 function getTrainingTitle(session: ClassSession) {
@@ -148,6 +175,18 @@ function getTrainingTitle(session: ClassSession) {
 
 function toOptionalTrainingId(trainingId: string) {
   return trainingId === NO_TRAINING_VALUE ? "" : trainingId;
+}
+
+function getUpdateTrainingId(trainingId: string) {
+  if (trainingId === NO_TRAINING_VALUE) {
+    return null;
+  }
+
+  return trainingId || undefined;
+}
+
+function isUuid(value: string) {
+  return UUID_PATTERN.test(value);
 }
 
 function getAttendanceCount(session: ClassSession) {
@@ -319,12 +358,22 @@ export function ClassesContent() {
       return;
     }
 
+    const startsAt = toIsoDateTime(form.startsAt);
+    const endsAt = form.endsAt
+      ? (toIsoDateTime(form.endsAt) ?? undefined)
+      : undefined;
+
+    if (!startsAt || (form.endsAt && !endsAt)) {
+      setFormError("Revisa la fecha y hora de la clase.");
+      return;
+    }
+
     try {
       const createPromise = createClassSession.mutateAsync({
         title: form.title.trim(),
         ...(form.trainingId ? { trainingId: form.trainingId } : {}),
-        startsAt: toDateTimeLocalValue(form.startsAt),
-        endsAt: form.endsAt ? toDateTimeLocalValue(form.endsAt) : undefined,
+        startsAt,
+        endsAt,
         notes: form.notes.trim() || undefined,
       });
 
@@ -347,7 +396,7 @@ export function ClassesContent() {
     setEditingSession(session);
     setEditForm({
       title: session.title,
-      trainingId: session.trainingId ?? session.training?.id ?? "",
+      trainingId: session.trainingId ?? session.training?.id ?? NO_TRAINING_VALUE,
       startsAt: toDateTimeInputValue(session.startsAt),
       endsAt: toDateTimeInputValue(session.endsAt),
       notes: session.notes ?? "",
@@ -374,32 +423,43 @@ export function ClassesContent() {
       return;
     }
 
+    const trainingId = getUpdateTrainingId(editForm.trainingId);
+
+    if (trainingId && !isUuid(trainingId)) {
+      setEditError("Selecciona una clase tipo valida.");
+      return;
+    }
+
+    const startsAt = toIsoDateTime(editForm.startsAt);
+    const endsAt = editForm.endsAt
+      ? (toIsoDateTime(editForm.endsAt) ?? undefined)
+      : undefined;
+
+    if (!startsAt || (editForm.endsAt && !endsAt)) {
+      setEditError("Revisa la fecha y hora de la clase.");
+      return;
+    }
+
     try {
-      const hadTraining = Boolean(
-        editingSession.trainingId ?? editingSession.training?.id,
-      );
       const updatePromise = updateClassSession.mutateAsync({
         classSessionId: editingSession.id,
         input: {
           title: editForm.title.trim(),
-          ...(editForm.trainingId
-            ? { trainingId: editForm.trainingId }
-            : hadTraining
-              ? { trainingId: null }
-              : {}),
-          startsAt: toDateTimeLocalValue(editForm.startsAt),
-          endsAt: editForm.endsAt
-            ? toDateTimeLocalValue(editForm.endsAt)
-            : undefined,
+          ...(trainingId !== undefined ? { trainingId } : {}),
+          startsAt,
+          endsAt,
           notes: editForm.notes.trim() || undefined,
-          status: editStatus || undefined,
+          status: normalizeStatus(editStatus),
         },
       });
 
       toast.promise(updatePromise, {
         loading: "actualizando clase...",
         success: "clase actualizada",
-        error: "no se pudo actualizar la clase",
+        error: (error) =>
+          error instanceof Error
+            ? error.message
+            : "no se pudo actualizar la clase",
       });
 
       await updatePromise;
@@ -483,7 +543,7 @@ export function ClassesContent() {
                 onValueChange={(trainingId) =>
                   setEditForm({
                     ...editForm,
-                    trainingId: toOptionalTrainingId(trainingId),
+                    trainingId,
                   })
                 }
                 disabled={trainingsQuery.isLoading || trainingsQuery.isError}

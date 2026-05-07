@@ -10,6 +10,8 @@ export type ClassSessionStatus =
   | "completed"
   | string;
 
+export type ClassSessionStatusCode = "SCHEDULED" | "CANCELLED" | "COMPLETED";
+
 export interface ClassSession {
   id: string;
   organizationId?: string;
@@ -46,7 +48,7 @@ export type UpdateClassSessionInput = Partial<
   Omit<CreateClassSessionInput, "trainingId">
 > & {
   trainingId?: string | null;
-  status?: ClassSessionStatus;
+  status?: ClassSessionStatusCode;
 };
 
 type ClassSessionsResponse =

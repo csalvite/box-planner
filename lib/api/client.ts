@@ -33,6 +33,17 @@ function getErrorMessage(payload: unknown, status: number) {
     if (typeof message === "string" && message.trim()) {
       return message;
     }
+
+    if (Array.isArray(message)) {
+      const messages = message.filter(
+        (currentMessage): currentMessage is string =>
+          typeof currentMessage === "string" && currentMessage.trim().length > 0,
+      );
+
+      if (messages.length > 0) {
+        return messages.join(". ");
+      }
+    }
   }
 
   return `La API respondió con estado ${status}`;
