@@ -36,13 +36,16 @@ export interface ClassSession {
 
 export interface CreateClassSessionInput {
   title: string;
-  trainingId: string;
+  trainingId?: string;
   startsAt: string;
   endsAt?: string;
   notes?: string;
 }
 
-export type UpdateClassSessionInput = Partial<CreateClassSessionInput> & {
+export type UpdateClassSessionInput = Partial<
+  Omit<CreateClassSessionInput, "trainingId">
+> & {
+  trainingId?: string | null;
   status?: ClassSessionStatus;
 };
 

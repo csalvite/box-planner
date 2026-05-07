@@ -321,6 +321,7 @@ export function StudentDashboardContent() {
   const blocks = session ? getOrderedBlocks(session) : [];
   const attendanceCount = session ? getAttendanceCount(session) : 0;
   const attending = session ? isStudentAttending(session) : false;
+  const hasTraining = Boolean(session?.training);
 
   const handleMarkAttendance = async () => {
     if (!session?.id) {
@@ -478,7 +479,11 @@ export function StudentDashboardContent() {
               ) : (
                 <EmptyState
                   title="la estructura aun no esta publicada"
-                  description="tu entrenador todavía no añadió partes a esta clase"
+                  description={
+                    hasTraining
+                      ? "tu entrenador todavia no anadio partes a esta clase"
+                      : "tu entrenador todavía no añadió la estructura"
+                  }
                   icon={Layers}
                   className="min-h-[260px]"
                 />

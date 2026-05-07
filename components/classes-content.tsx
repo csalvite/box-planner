@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Clock,
   FileText,
+  Layers,
   Pencil,
   Plus,
   Trash2,
@@ -60,6 +61,8 @@ const initialForm: ClassSessionFormState = {
   endsAt: "",
   notes: "",
 };
+
+const NO_TRAINING_VALUE = "no-training";
 
 const statusLabels: Record<string, string> = {
   SCHEDULED: "programada",
@@ -140,7 +143,11 @@ function normalizeStatus(status?: string | null) {
 }
 
 function getTrainingTitle(session: ClassSession) {
-  return session.training?.title ?? "clase tipo pendiente";
+  return session.training?.title ?? "sin estructura todavía";
+}
+
+function toOptionalTrainingId(trainingId: string) {
+  return trainingId === NO_TRAINING_VALUE ? "" : trainingId;
 }
 
 function getAttendanceCount(session: ClassSession) {
@@ -174,6 +181,7 @@ function ClassSessionCard({
   const dateTime = formatSessionDate(session.startsAt);
   const status = normalizeStatus(session.status);
   const duration = formatDuration(session.startsAt, session.endsAt);
+  const hasTraining = Boolean(session.training);
 
   return (
     <Card className="border-border/80 bg-card/70 p-5 shadow-md shadow-black/15">
@@ -235,8 +243,12 @@ function ClassSessionCard({
               className="w-full bg-transparent"
               onClick={onEdit}
             >
-              <Pencil className="h-4 w-4" />
-              editar
+              {hasTraining ? (
+                <Pencil className="h-4 w-4" />
+              ) : (
+                <Layers className="h-4 w-4" />
+              )}
+              {hasTraining ? "editar" : "añadir estructura"}
             </Button>
             <Button
               type="button"
@@ -302,11 +314,6 @@ export function ClassesContent() {
       return;
     }
 
-    if (!form.trainingId) {
-      setFormError("Selecciona una clase tipo.");
-      return;
-    }
-
     if (!form.startsAt) {
       setFormError("Selecciona fecha y hora de inicio.");
       return;
@@ -315,7 +322,7 @@ export function ClassesContent() {
     try {
       const createPromise = createClassSession.mutateAsync({
         title: form.title.trim(),
-        trainingId: form.trainingId,
+        ...(form.trainingId ? { trainingId: form.trainingId } : {}),
         startsAt: toDateTimeLocalValue(form.startsAt),
         endsAt: form.endsAt ? toDateTimeLocalValue(form.endsAt) : undefined,
         notes: form.notes.trim() || undefined,
@@ -362,22 +369,24 @@ export function ClassesContent() {
       return;
     }
 
-    if (!editForm.trainingId) {
-      setEditError("Selecciona una clase tipo.");
-      return;
-    }
-
     if (!editForm.startsAt) {
       setEditError("Selecciona fecha y hora de inicio.");
       return;
     }
 
     try {
+      const hadTraining = Boolean(
+        editingSession.trainingId ?? editingSession.training?.id,
+      );
       const updatePromise = updateClassSession.mutateAsync({
         classSessionId: editingSession.id,
         input: {
           title: editForm.title.trim(),
-          trainingId: editForm.trainingId,
+          ...(editForm.trainingId
+            ? { trainingId: editForm.trainingId }
+            : hadTraining
+              ? { trainingId: null }
+              : {}),
           startsAt: toDateTimeLocalValue(editForm.startsAt),
           endsAt: editForm.endsAt
             ? toDateTimeLocalValue(editForm.endsAt)
@@ -449,7 +458,7 @@ export function ClassesContent() {
           <DialogHeader>
             <DialogTitle>editar clase</DialogTitle>
             <DialogDescription>
-              ajusta horario, clase tipo, notas o estado de la sesion.
+              ajusta horario, estructura opcional, notas o estado de la sesion.
             </DialogDescription>
           </DialogHeader>
 
@@ -466,18 +475,26 @@ export function ClassesContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-class-training">clase tipo</Label>
+              <Label htmlFor="edit-class-training">
+                usar plantilla/clase tipo opcional
+              </Label>
               <Select
                 value={editForm.trainingId}
                 onValueChange={(trainingId) =>
-                  setEditForm({ ...editForm, trainingId })
+                  setEditForm({
+                    ...editForm,
+                    trainingId: toOptionalTrainingId(trainingId),
+                  })
                 }
                 disabled={trainingsQuery.isLoading || trainingsQuery.isError}
               >
                 <SelectTrigger id="edit-class-training" className="w-full">
-                  <SelectValue placeholder="selecciona clase tipo" />
+                  <SelectValue placeholder="opcional: selecciona una clase tipo" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_TRAINING_VALUE}>
+                    sin estructura todavía
+                  </SelectItem>
                   {trainings.map((training) => (
                     <SelectItem key={training.id} value={training.id}>
                       {training.title} -{" "}
@@ -575,7 +592,7 @@ export function ClassesContent() {
                   programar clase
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  elige una clase tipo y horario.
+                  crea la clase y añade estructura después si quieres.
                 </p>
               </div>
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -596,16 +613,23 @@ export function ClassesContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="class-training">clase tipo</Label>
+              <Label htmlFor="class-training">
+                usar plantilla/clase tipo opcional
+              </Label>
               <Select
                 value={form.trainingId}
-                onValueChange={(trainingId) => setForm({ ...form, trainingId })}
+                onValueChange={(trainingId) =>
+                  setForm({ ...form, trainingId: toOptionalTrainingId(trainingId) })
+                }
                 disabled={trainingsQuery.isLoading || trainingsQuery.isError}
               >
                 <SelectTrigger id="class-training" className="w-full">
-                  <SelectValue placeholder="selecciona clase tipo" />
+                  <SelectValue placeholder="opcional: selecciona una clase tipo" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_TRAINING_VALUE}>
+                    sin estructura todavía
+                  </SelectItem>
                   {trainings.map((training) => (
                     <SelectItem key={training.id} value={training.id}>
                       {training.title} -{" "}
@@ -663,7 +687,7 @@ export function ClassesContent() {
 
             {trainingsQuery.error && (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                no pudimos cargar clases tipo.
+                no pudimos cargar clases tipo. puedes programar sin plantilla.
               </p>
             )}
 
@@ -671,7 +695,7 @@ export function ClassesContent() {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={createClassSession.isPending || trainingsQuery.isLoading}
+              disabled={createClassSession.isPending}
             >
               <CalendarClock className="h-4 w-4" />
               {createClassSession.isPending ? "programando..." : "programar clase"}
