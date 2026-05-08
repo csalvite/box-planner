@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -10,13 +10,26 @@ import {
   Layers,
   Pencil,
   Plus,
+  Power,
+  Search,
   Trash2,
   Dumbbell,
   UsersRound,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +53,8 @@ import {
   useCreateClassSession,
   useDeleteClassSession,
   useUpdateClassSession,
+  useUpdateClassSessionEnabled,
+  useUpdateClassSessionStatus,
 } from "@/hooks/use-class-sessions";
 import { useTrainings } from "@/hooks/use-trainings";
 import type {
@@ -66,29 +81,43 @@ const initialForm: ClassSessionFormState = {
 };
 
 const NO_TRAINING_VALUE = "no-training";
+const ALL_CLASS_TYPES_VALUE = "all-class-types";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const statusLabels: Record<ClassSessionStatusCode, string> = {
-  SCHEDULED: "programada",
+type ClassSessionDisplayState = "ENABLED" | "DISABLED" | "CANCELLED";
+type ClassSessionListFilter = "all" | "enabled" | "disabled" | "cancelled";
+
+const statusLabels: Record<ClassSessionDisplayState, string> = {
+  ENABLED: "habilitada",
+  DISABLED: "deshabilitada",
   CANCELLED: "cancelada",
-  COMPLETED: "completada",
 };
 
-const statusColors: Record<ClassSessionStatusCode, string> = {
-  SCHEDULED: "bg-primary/10 text-primary ring-primary/15",
+const statusColors: Record<ClassSessionDisplayState, string> = {
+  ENABLED: "bg-primary/10 text-primary ring-primary/15",
+  DISABLED: "bg-muted/40 text-muted-foreground ring-border/80",
   CANCELLED: "bg-destructive/10 text-destructive ring-destructive/20",
-  COMPLETED: "bg-chart-2/15 text-chart-2 ring-chart-2/20",
 };
 
 const statusAliases: Record<string, ClassSessionStatusCode> = {
   scheduled: "SCHEDULED",
   programada: "SCHEDULED",
-  cancelled: "CANCELLED",
-  cancelada: "CANCELLED",
   completed: "COMPLETED",
   completada: "COMPLETED",
+  cancelled: "CANCELLED",
+  cancelada: "CANCELLED",
 };
+
+const statusFilters: Array<{
+  value: ClassSessionListFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Todas" },
+  { value: "enabled", label: "Habilitadas" },
+  { value: "disabled", label: "Deshabilitadas" },
+  { value: "cancelled", label: "Canceladas" },
+];
 
 function toIsoDateTime(value: string) {
   if (!value) {
@@ -169,8 +198,18 @@ function normalizeStatus(status?: string | null): ClassSessionStatusCode {
   );
 }
 
+function getDisplayState(session: ClassSession): ClassSessionDisplayState {
+  if (normalizeStatus(session.status) === "CANCELLED") {
+    return "CANCELLED";
+  }
+
+  return session.isEnabled === false ? "DISABLED" : "ENABLED";
+}
+
 function getTrainingTitle(session: ClassSession) {
-  return session.training?.title ?? "sin estructura todavía";
+  return (
+    session.classType?.title ?? session.training?.title ?? "sin estructura todavía"
+  );
 }
 
 function toOptionalTrainingId(trainingId: string) {
@@ -204,36 +243,66 @@ function getClassSessionsErrorMessage(error: Error) {
   return `${error.message}. revisa que la organizacion activa tenga permisos y vuelve a intentarlo.`;
 }
 
+function useDebouncedValue<T>(value: T, delayMs = 300) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedValue(value);
+    }, delayMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs, value]);
+
+  return debouncedValue;
+}
+
 function ClassSessionCard({
   session,
   isDeleting,
+  isUpdatingStatus,
+  isUpdatingEnabled,
   canEdit,
   onEdit,
+  onToggleEnabled,
+  onCancel,
   onDelete,
 }: {
   session: ClassSession;
   isDeleting: boolean;
+  isUpdatingStatus: boolean;
+  isUpdatingEnabled: boolean;
   canEdit: boolean;
   onEdit: () => void;
+  onToggleEnabled: () => void;
+  onCancel: () => void;
   onDelete: () => void;
 }) {
   const dateTime = formatSessionDate(session.startsAt);
-  const status = normalizeStatus(session.status);
+  const displayState = getDisplayState(session);
   const duration = formatDuration(session.startsAt, session.endsAt);
-  const hasTraining = Boolean(session.training);
+  const hasTraining = Boolean(session.classType ?? session.training);
+  const isMuted = displayState === "DISABLED" || displayState === "CANCELLED";
+  const toggleStatusLabel =
+    displayState === "DISABLED" ? "habilitar" : "deshabilitar";
 
   return (
-    <Card className="border-border/80 bg-card/70 p-5 shadow-md shadow-black/15">
+    <Card
+      className={cn(
+        "border-border/80 bg-card/70 p-5 shadow-md shadow-black/15 transition",
+        isMuted && "border-border/45 bg-card/45 opacity-75 shadow-black/5",
+      )}
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium ring-1",
-                statusColors[status] ?? statusColors.SCHEDULED,
+                statusColors[displayState] ?? statusColors.ENABLED,
               )}
             >
-              {statusLabels[status] ?? status.toLowerCase()}
+              {statusLabels[displayState]}
             </span>
             <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-white/10">
               {dateTime.day}
@@ -275,7 +344,7 @@ function ClassSessionCard({
         </div>
 
         {canEdit ? (
-          <div className="grid gap-2 sm:min-w-36">
+          <div className="grid gap-2 sm:min-w-44">
             <Button
               type="button"
               variant="outline"
@@ -292,12 +361,32 @@ function ClassSessionCard({
             <Button
               type="button"
               variant="outline"
+              className="w-full bg-transparent"
+              disabled={isUpdatingEnabled || displayState === "CANCELLED"}
+              onClick={onToggleEnabled}
+            >
+              <Power className="h-4 w-4" />
+              {toggleStatusLabel}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-transparent text-destructive hover:text-destructive"
+              disabled={isUpdatingStatus || displayState === "CANCELLED"}
+              onClick={onCancel}
+            >
+              <XCircle className="h-4 w-4" />
+              cancelar clase
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               className="w-full bg-transparent text-destructive hover:text-destructive"
               disabled={isDeleting}
               onClick={onDelete}
             >
               <Trash2 className="h-4 w-4" />
-              borrar
+              borrar definitivamente
             </Button>
           </div>
         ) : null}
@@ -310,13 +399,38 @@ export function ClassesContent() {
   const { activeOrganization, activeOrganizationId } = useActiveOrganization();
   const canManageClasses = isStaffOrganization(activeOrganization);
   const classesOrganizationId = canManageClasses ? activeOrganizationId : null;
-  const classSessionsQuery = useClassSessions(classesOrganizationId);
+  const [statusFilter, setStatusFilter] = useState<ClassSessionListFilter>("all");
+  const [classTypeFilter, setClassTypeFilter] = useState(ALL_CLASS_TYPES_VALUE);
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebouncedValue(searchTerm.trim());
+  const classSessionFilters = useMemo(
+    () => ({
+      ...(statusFilter === "all" ? { status: "ALL" as const, enabled: "ALL" as const } : {}),
+      ...(statusFilter === "enabled" ? { enabled: "true" as const } : {}),
+      ...(statusFilter === "disabled" ? { enabled: "false" as const } : {}),
+      ...(statusFilter === "cancelled" ? { status: "CANCELLED" as const } : {}),
+      ...(classTypeFilter !== ALL_CLASS_TYPES_VALUE
+        ? { trainingId: classTypeFilter }
+        : {}),
+      ...(debouncedSearchTerm ? { search: debouncedSearchTerm } : {}),
+    }),
+    [classTypeFilter, debouncedSearchTerm, statusFilter],
+  );
+  const classSessionsQuery = useClassSessions(
+    classesOrganizationId,
+    classSessionFilters,
+  );
   const trainingsQuery = useTrainings(classesOrganizationId);
   const createClassSession = useCreateClassSession(classesOrganizationId);
   const updateClassSession = useUpdateClassSession(classesOrganizationId);
+  const updateClassSessionEnabled =
+    useUpdateClassSessionEnabled(classesOrganizationId);
+  const updateClassSessionStatus =
+    useUpdateClassSessionStatus(classesOrganizationId);
   const deleteClassSession = useDeleteClassSession(classesOrganizationId);
   const [form, setForm] = useState<ClassSessionFormState>(initialForm);
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<ClassSession | null>(null);
   const [editForm, setEditForm] = useState<ClassSessionFormState>(initialForm);
   const [editStatus, setEditStatus] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -396,12 +510,17 @@ export function ClassesContent() {
     setEditingSession(session);
     setEditForm({
       title: session.title,
-      trainingId: session.trainingId ?? session.training?.id ?? NO_TRAINING_VALUE,
+      trainingId:
+        session.classTypeId ??
+        session.classType?.id ??
+        session.trainingId ??
+        session.training?.id ??
+        NO_TRAINING_VALUE,
       startsAt: toDateTimeInputValue(session.startsAt),
       endsAt: toDateTimeInputValue(session.endsAt),
       notes: session.notes ?? "",
     });
-    setEditStatus(session.status ? normalizeStatus(session.status) : "");
+    setEditStatus(session.status ? normalizeStatus(session.status) : "SCHEDULED");
     setEditError(null);
   };
 
@@ -471,17 +590,66 @@ export function ClassesContent() {
     }
   };
 
-  const handleDelete = async (classSessionId: string) => {
-    const deletePromise = deleteClassSession.mutateAsync(classSessionId);
+  const handleStatusChange = async (
+    classSessionId: string,
+    status: ClassSessionStatusCode,
+  ) => {
+    const statusPromise = updateClassSessionStatus.mutateAsync({
+      classSessionId,
+      status,
+    });
+
+    toast.promise(statusPromise, {
+      loading: "actualizando estado...",
+      success: "estado actualizado",
+      error: "no se pudo actualizar el estado",
+    });
+
+    try {
+      await statusPromise;
+    } catch {
+      // react query keeps the detailed error for the inline state
+    }
+  };
+
+  const handleEnabledChange = async (
+    classSessionId: string,
+    isEnabled: boolean,
+  ) => {
+    const enabledPromise = updateClassSessionEnabled.mutateAsync({
+      classSessionId,
+      isEnabled,
+    });
+
+    toast.promise(enabledPromise, {
+      loading: isEnabled ? "habilitando clase..." : "deshabilitando clase...",
+      success: isEnabled ? "clase habilitada" : "clase deshabilitada",
+      error: "no se pudo actualizar la disponibilidad",
+    });
+
+    try {
+      await enabledPromise;
+    } catch {
+      // react query keeps the detailed error for the inline state
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!sessionToDelete) {
+      return;
+    }
+
+    const deletePromise = deleteClassSession.mutateAsync(sessionToDelete.id);
 
     toast.promise(deletePromise, {
       loading: "borrando clase...",
-      success: "clase cancelada/borrada",
-      error: "no se pudo cancelar o borrar la clase",
+      success: "clase borrada definitivamente",
+      error: "no se pudo borrar la clase",
     });
 
     try {
       await deletePromise;
+      setSessionToDelete(null);
     } catch {
       // react query keeps the detailed error for the inline state
     }
@@ -599,8 +767,8 @@ export function ClassesContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SCHEDULED">programada</SelectItem>
-                  <SelectItem value="CANCELLED">cancelada</SelectItem>
                   <SelectItem value="COMPLETED">completada</SelectItem>
+                  <SelectItem value="CANCELLED">cancelada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -639,6 +807,46 @@ export function ClassesContent() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(sessionToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSessionToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>borrar clase definitivamente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará la clase y sus reservas asociadas. No se
+              puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {sessionToDelete ? (
+            <div className="rounded-md border border-border/70 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+              {sessionToDelete.title}
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteClassSession.isPending}>
+              cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteClassSession.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDelete();
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              borrar definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] xl:items-start">
         <Card
@@ -773,6 +981,58 @@ export function ClassesContent() {
             </p>
           </div>
 
+          <div className="space-y-3 rounded-lg border border-border/70 bg-card/45 p-3">
+            <div className="flex flex-wrap gap-2">
+              {statusFilters.map((filter) => (
+                <Button
+                  key={filter.value}
+                  type="button"
+                  size="sm"
+                  variant={statusFilter === filter.value ? "default" : "outline"}
+                  className={cn(
+                    "h-9",
+                    statusFilter !== filter.value && "bg-transparent",
+                  )}
+                  onClick={() => setStatusFilter(filter.value)}
+                >
+                  {filter.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[minmax(180px,240px)_minmax(220px,1fr)]">
+              <Select
+                value={classTypeFilter}
+                onValueChange={setClassTypeFilter}
+                disabled={trainingsQuery.isLoading || trainingsQuery.isError}
+              >
+                <SelectTrigger id="class-type-filter" className="w-full">
+                  <SelectValue placeholder="tipo de clase" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CLASS_TYPES_VALUE}>
+                    todos los tipos
+                  </SelectItem>
+                  {trainings.map((training) => (
+                    <SelectItem key={training.id} value={training.id}>
+                      {training.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="buscar por titulo"
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+
           {classSessionsQuery.isLoading && (
             <LoadingState
               title="cargando clases"
@@ -797,21 +1057,55 @@ export function ClassesContent() {
             </p>
           )}
 
+          {updateClassSessionStatus.error && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {updateClassSessionStatus.error.message}
+            </p>
+          )}
+
+          {updateClassSessionEnabled.error && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {updateClassSessionEnabled.error.message}
+            </p>
+          )}
+
           {!classSessionsQuery.isLoading &&
             !classSessionsQuery.error &&
-            sessions.map((session) => (
-              <ClassSessionCard
-                key={session.id}
-                session={session}
-                isDeleting={
-                  deleteClassSession.isPending &&
-                  deleteClassSession.variables === session.id
-                }
-                canEdit={canManageClasses}
-                onEdit={() => openEditDialog(session)}
-                onDelete={() => void handleDelete(session.id)}
-              />
-            ))}
+            sessions.map((session) => {
+              const isUpdatingThisStatus =
+                updateClassSessionStatus.isPending &&
+                updateClassSessionStatus.variables?.classSessionId === session.id;
+              const isUpdatingThisEnabled =
+                updateClassSessionEnabled.isPending &&
+                updateClassSessionEnabled.variables?.classSessionId ===
+                  session.id;
+              const displayState = getDisplayState(session);
+
+              return (
+                <ClassSessionCard
+                  key={session.id}
+                  session={session}
+                  isDeleting={
+                    deleteClassSession.isPending &&
+                    deleteClassSession.variables === session.id
+                  }
+                  isUpdatingStatus={isUpdatingThisStatus}
+                  isUpdatingEnabled={isUpdatingThisEnabled}
+                  canEdit={canManageClasses}
+                  onEdit={() => openEditDialog(session)}
+                  onToggleEnabled={() =>
+                    void handleEnabledChange(
+                      session.id,
+                      displayState === "DISABLED",
+                    )
+                  }
+                  onCancel={() =>
+                    void handleStatusChange(session.id, "CANCELLED")
+                  }
+                  onDelete={() => setSessionToDelete(session)}
+                />
+              );
+            })}
 
           {!classSessionsQuery.isLoading &&
             !classSessionsQuery.error &&

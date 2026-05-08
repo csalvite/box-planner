@@ -8,8 +8,12 @@ import {
   markAttendance,
   removeAttendance,
   updateClassSession,
+  updateClassSessionEnabled,
+  updateClassSessionStatus,
   type ClassSessionAttendanceResult,
   type ClassSession,
+  type ClassSessionFilters,
+  type ClassSessionStatusCode,
   type CreateClassSessionInput,
   type UpdateClassSessionInput,
 } from "@/lib/api/class-sessions";
@@ -20,15 +24,30 @@ import {
 import type { StudentNextSession } from "@/lib/api/student";
 import { useAuth } from "@/components/providers/auth-provider";
 
-export const classSessionsQueryKey = (organizationId?: string | null) =>
+export const classSessionsBaseQueryKey = (organizationId?: string | null) =>
   ["class-sessions", organizationId] as const;
 
-export function useClassSessions(organizationId?: string | null) {
+export const classSessionsQueryKey = (
+  organizationId?: string | null,
+  filters?: ClassSessionFilters,
+) =>
+  [
+    ...classSessionsBaseQueryKey(organizationId),
+    filters?.status ?? "all",
+    filters?.enabled ?? "all",
+    filters?.trainingId ?? "all",
+    filters?.search ?? "",
+  ] as const;
+
+export function useClassSessions(
+  organizationId?: string | null,
+  filters?: ClassSessionFilters,
+) {
   const { accessToken } = useAuth();
 
   return useQuery({
-    queryKey: classSessionsQueryKey(organizationId),
-    queryFn: () => getClassSessions(organizationId as string, accessToken),
+    queryKey: classSessionsQueryKey(organizationId, filters),
+    queryFn: () => getClassSessions(organizationId as string, accessToken, filters),
     enabled: Boolean(accessToken && organizationId),
   });
 }
@@ -46,7 +65,7 @@ export function useCreateClassSession(organizationId?: string | null) {
         (sessions = []) => [session, ...sessions],
       );
       await queryClient.invalidateQueries({
-        queryKey: classSessionsQueryKey(organizationId),
+        queryKey: classSessionsBaseQueryKey(organizationId),
       });
     },
   });
@@ -71,15 +90,89 @@ export function useUpdateClassSession(organizationId?: string | null) {
         accessToken,
       ),
     onSuccess: async (session) => {
-      queryClient.setQueryData<ClassSession[]>(
-        classSessionsQueryKey(organizationId),
+      queryClient.setQueriesData<ClassSession[]>(
+        { queryKey: classSessionsBaseQueryKey(organizationId) },
         (sessions = []) =>
           sessions.map((currentSession) =>
             currentSession.id === session.id ? session : currentSession,
           ),
       );
       await queryClient.invalidateQueries({
-        queryKey: classSessionsQueryKey(organizationId),
+        queryKey: classSessionsBaseQueryKey(organizationId),
+      });
+    },
+  });
+}
+
+export function useUpdateClassSessionStatus(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      classSessionId,
+      status,
+    }: {
+      classSessionId: string;
+      status: ClassSessionStatusCode;
+    }) =>
+      updateClassSessionStatus(
+        organizationId as string,
+        classSessionId,
+        status,
+        accessToken,
+      ),
+    onSuccess: async (session) => {
+      queryClient.setQueriesData<ClassSession[]>(
+        { queryKey: classSessionsBaseQueryKey(organizationId) },
+        (sessions = []) =>
+          sessions.map((currentSession) =>
+            currentSession.id === session.id ? session : currentSession,
+          ),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: classSessionsBaseQueryKey(organizationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: classSessionsBaseQueryKey(organizationId),
+        type: "active",
+      });
+    },
+  });
+}
+
+export function useUpdateClassSessionEnabled(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      classSessionId,
+      isEnabled,
+    }: {
+      classSessionId: string;
+      isEnabled: boolean;
+    }) =>
+      updateClassSessionEnabled(
+        organizationId as string,
+        classSessionId,
+        isEnabled,
+        accessToken,
+      ),
+    onSuccess: async (session) => {
+      queryClient.setQueriesData<ClassSession[]>(
+        { queryKey: classSessionsBaseQueryKey(organizationId) },
+        (sessions = []) =>
+          sessions.map((currentSession) =>
+            currentSession.id === session.id ? session : currentSession,
+          ),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: classSessionsBaseQueryKey(organizationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: classSessionsBaseQueryKey(organizationId),
+        type: "active",
       });
     },
   });
@@ -93,13 +186,13 @@ export function useDeleteClassSession(organizationId?: string | null) {
     mutationFn: (classSessionId: string) =>
       deleteClassSession(organizationId as string, classSessionId, accessToken),
     onSuccess: async (_response, classSessionId) => {
-      queryClient.setQueryData<ClassSession[]>(
-        classSessionsQueryKey(organizationId),
+      queryClient.setQueriesData<ClassSession[]>(
+        { queryKey: classSessionsBaseQueryKey(organizationId) },
         (sessions = []) =>
           sessions.filter((session) => session.id !== classSessionId),
       );
       await queryClient.invalidateQueries({
-        queryKey: classSessionsQueryKey(organizationId),
+        queryKey: classSessionsBaseQueryKey(organizationId),
       });
     },
   });
@@ -195,7 +288,7 @@ async function refreshAttendanceQueries(
       queryKey: studentStatsQueryKey(organizationId),
     }),
     queryClient.invalidateQueries({
-      queryKey: classSessionsQueryKey(organizationId),
+      queryKey: classSessionsBaseQueryKey(organizationId),
     }),
   ]);
 }
