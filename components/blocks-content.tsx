@@ -5,7 +5,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedCard } from "@/components/ui/animated-card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import { Input } from "@/components/ui/input";
 import { Dumbbell, Plus, Search, Clock, Trash2, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,11 +37,7 @@ import { BlockExercisesPanel } from "@/components/block-exercises-panel";
 import { useAppTranslation } from "@/hooks/use-app-translation";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import { useBlockCategories } from "@/hooks/use-block-categories";
-import {
-  useBlocks,
-  useCreateBlock,
-  useDeleteBlock,
-} from "@/hooks/use-blocks";
+import { useBlocks, useCreateBlock, useDeleteBlock } from "@/hooks/use-blocks";
 import { useBlockExercises } from "@/hooks/use-exercises";
 import { isStaffOrganization } from "@/lib/organization-role";
 
@@ -164,7 +164,7 @@ export function BlocksContent() {
     block.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
   const currentSelectedBlock = selectedBlock
-    ? blocks.find((block) => block.id === selectedBlock.id) ?? selectedBlock
+    ? (blocks.find((block) => block.id === selectedBlock.id) ?? selectedBlock)
     : null;
 
   const blockCategories = blockCategoriesQuery.data ?? [];
@@ -279,7 +279,7 @@ export function BlocksContent() {
               {t("blocks.newBlock")}
             </AnimatedButton>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl lg:p-7">
             <DialogHeader>
               <DialogTitle>{t("blocks.createBlockTitle")}</DialogTitle>
               <DialogDescription>
@@ -288,54 +288,59 @@ export function BlocksContent() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("blocks.name")}</Label>
-                <Input
-                  id="name"
-                  placeholder={t("blocks.namePlaceholder")}
-                  value={newBlock.name}
-                  onChange={(e) =>
-                    setNewBlock({ ...newBlock, name: e.target.value })
-                  }
-                />
-              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="name">{t("blocks.name")}</Label>
+                  <Input
+                    id="name"
+                    placeholder={t("blocks.namePlaceholder")}
+                    value={newBlock.name}
+                    onChange={(e) =>
+                      setNewBlock({ ...newBlock, name: e.target.value })
+                    }
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="category">{t("blocks.category")}</Label>
-                <Select
-                  value={selectedCategoryId ? String(selectedCategoryId) : ""}
-                  onValueChange={(value) =>
-                    setNewBlock({
-                      ...newBlock,
-                      categoryId: Number(value),
-                    })
-                  }
-                  disabled={
-                    blockCategoriesQuery.isLoading ||
-                    blockCategoriesQuery.isError
-                  }
-                >
-                  <SelectTrigger id="category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {blockCategories.map((category) => (
-                      <SelectItem key={category.id} value={String(category.id)}>
-                        {getCategoryLabel(category.key)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {blockCategoriesQuery.isLoading && (
-                  <p className="text-xs text-muted-foreground">
-                    cargando categorías...
-                  </p>
-                )}
-                {blockCategoriesQuery.error && (
-                  <p className="text-xs text-destructive">
-                    no pudimos cargar las categorías.
-                  </p>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="category">{t("blocks.category")}</Label>
+                  <Select
+                    value={selectedCategoryId ? String(selectedCategoryId) : ""}
+                    onValueChange={(value) =>
+                      setNewBlock({
+                        ...newBlock,
+                        categoryId: Number(value),
+                      })
+                    }
+                    disabled={
+                      blockCategoriesQuery.isLoading ||
+                      blockCategoriesQuery.isError
+                    }
+                  >
+                    <SelectTrigger id="category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {blockCategories.map((category) => (
+                        <SelectItem
+                          key={category.id}
+                          value={String(category.id)}
+                        >
+                          {getCategoryLabel(category.key)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {blockCategoriesQuery.isLoading && (
+                    <p className="text-xs text-muted-foreground">
+                      cargando categorías...
+                    </p>
+                  )}
+                  {blockCategoriesQuery.error && (
+                    <p className="text-xs text-destructive">
+                      no pudimos cargar las categorías.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -347,7 +352,8 @@ export function BlocksContent() {
                   onChange={(e) =>
                     setNewBlock({ ...newBlock, description: e.target.value })
                   }
-                  rows={3}
+                  rows={4}
+                  className="min-h-28"
                 />
               </div>
 
@@ -385,11 +391,12 @@ export function BlocksContent() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto lg:p-7">
           <DialogHeader>
             <DialogTitle>{currentSelectedBlock?.name}</DialogTitle>
             <DialogDescription>
-              gestiona ejercicios, descansos y la duracion calculada de esta parte.
+              gestiona ejercicios, descansos y la duracion calculada de esta
+              parte.
             </DialogDescription>
           </DialogHeader>
           {activeOrganizationId && currentSelectedBlock && (
@@ -523,9 +530,9 @@ export function BlocksContent() {
                                   organizationId={activeOrganizationId}
                                 />
                               ) : (
-                                block._count?.exercises ??
+                                (block._count?.exercises ??
                                 block.exercises?.length ??
-                                "-"
+                                "-")
                               )}
                             </p>
                           </div>

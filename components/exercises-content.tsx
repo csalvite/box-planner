@@ -28,7 +28,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import {
   Dialog,
   DialogContent,
@@ -322,9 +326,11 @@ function renderUnknownValue(value: unknown): string | null {
 function DetailRow({
   label,
   value,
+  className,
 }: {
   label: string;
   value: React.ReactNode;
+  className?: string;
 }) {
   if (
     value === undefined ||
@@ -336,9 +342,51 @@ function DetailRow({
   }
 
   return (
-    <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+    <div
+      className={cn(
+        "rounded-md border border-border/70 bg-background/45 px-3 py-2",
+        className,
+      )}
+    >
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-sm leading-6 text-foreground">{value}</dd>
+      <dd className="mt-1 min-w-0 text-sm leading-6 text-foreground">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border/70 pt-5 first:border-t-0 first:pt-0">
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function BadgeList({ items }: { items: string[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex min-w-0 flex-wrap gap-2">
+      {items.map((item) => (
+        <Badge
+          key={item}
+          variant="outline"
+          className="max-w-full whitespace-normal break-words text-left leading-5"
+        >
+          {item}
+        </Badge>
+      ))}
     </div>
   );
 }
@@ -369,7 +417,9 @@ function getExerciseSourceLabel(exercise: Exercise) {
   return isGlobalExercise(exercise) ? "BoxPlanner" : "Mi gimnasio";
 }
 
-function duplicatePayloadFromExercise(exercise: Exercise): CreateExercisePayload {
+function duplicatePayloadFromExercise(
+  exercise: Exercise,
+): CreateExercisePayload {
   return {
     name: exercise.name,
     category: normalizeExerciseCategory(exercise.category),
@@ -409,106 +459,115 @@ function ExerciseDetail({
   const isGlobal = isGlobalExercise(exercise);
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <Badge
-            variant="outline"
-            className={cn(
-              "border-transparent",
-              categoryColors[normalizeExerciseCategory(exercise.category)],
-            )}
-          >
-            {getExerciseCategoryLabel(exercise.category)}
-          </Badge>
-          <Badge variant="secondary">
-            {getExerciseLevelLabel(exercise.level)}
-          </Badge>
-          <Badge variant="secondary">
-            {getExerciseIntensityLabel(exercise.intensity)}
-          </Badge>
-          <Badge variant={isGlobal ? "default" : "outline"}>
-            {getExerciseSourceLabel(exercise)}
-          </Badge>
+    <div className="space-y-6">
+      <DetailSection title="informacion general">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant="outline"
+              className={cn(
+                "border-transparent",
+                categoryColors[normalizeExerciseCategory(exercise.category)],
+              )}
+            >
+              {getExerciseCategoryLabel(exercise.category)}
+            </Badge>
+            <Badge variant="secondary">
+              {getExerciseLevelLabel(exercise.level)}
+            </Badge>
+            <Badge variant="secondary">
+              {getExerciseIntensityLabel(exercise.intensity)}
+            </Badge>
+            <Badge variant={isGlobal ? "default" : "outline"}>
+              {getExerciseSourceLabel(exercise)}
+            </Badge>
+          </div>
+          {(exercise.shortDescription ?? exercise.description) ? (
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              {exercise.shortDescription ?? exercise.description}
+            </p>
+          ) : null}
         </div>
-        {exercise.shortDescription ?? exercise.description ? (
-          <p className="text-sm leading-6 text-muted-foreground">
-            {exercise.shortDescription ?? exercise.description}
-          </p>
-        ) : null}
-      </div>
 
-      <dl className="grid gap-3 sm:grid-cols-2">
-        <DetailRow label="nombre" value={exercise.name} />
-        <DetailRow
-          label="categoria"
-          value={getExerciseCategoryLabel(exercise.category)}
-        />
-        <DetailRow label="nivel" value={getExerciseLevelLabel(exercise.level)} />
-        <DetailRow
-          label="intensidad"
-          value={getExerciseIntensityLabel(exercise.intensity)}
-        />
-        <DetailRow
-          label="duracion media"
-          value={
-            exercise.averageDurationMinutes
-              ? `${exercise.averageDurationMinutes} min`
-              : null
-          }
-        />
-        <DetailRow label="objetivo principal" value={exercise.mainGoal} />
-        <DetailRow
-          label="tamano recomendado"
-          value={exercise.recommendedGroupSize}
-        />
-        <DetailRow label="espacio requerido" value={exercise.spaceRequired} />
-        <DetailRow
-          label="requiere pareja"
-          value={exercise.requiresPartner ? "si" : "no"}
-        />
-        <DetailRow label="origen" value={getExerciseSourceLabel(exercise)} />
-      </dl>
+        <dl className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <DetailRow label="nombre" value={exercise.name} />
+          <DetailRow
+            label="categoria"
+            value={getExerciseCategoryLabel(exercise.category)}
+          />
+          <DetailRow
+            label="nivel"
+            value={getExerciseLevelLabel(exercise.level)}
+          />
+          <DetailRow
+            label="intensidad"
+            value={getExerciseIntensityLabel(exercise.intensity)}
+          />
+          <DetailRow label="origen" value={getExerciseSourceLabel(exercise)} />
+        </dl>
+      </DetailSection>
 
-      <dl className="space-y-3">
-        <DetailRow
-          label="descripcion detallada"
-          value={exercise.detailedDescription}
-        />
-        <DetailRow label="notas para coach" value={exercise.coachNotes} />
-        <DetailRow
-          label="tags"
-          value={
-            tags.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <Badge key={tag} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            ) : null
-          }
-        />
-        <DetailRow
-          label="materiales"
-          value={
-            materials.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {materials.map((material) => (
-                  <Badge key={material} variant="outline">
-                    {material}
-                  </Badge>
-                ))}
-              </div>
-            ) : null
-          }
-        />
-        <DetailRow label="variantes" value={variants} />
-        <DetailRow label="compatibilidades" value={compatibilities} />
-      </dl>
+      <DetailSection title="objetivos">
+        <dl className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <DetailRow label="objetivo principal" value={exercise.mainGoal} />
+          <DetailRow
+            label="duracion media"
+            value={
+              exercise.averageDurationMinutes
+                ? `${exercise.averageDurationMinutes} min`
+                : null
+            }
+          />
+          <DetailRow
+            label="tamano recomendado"
+            value={exercise.recommendedGroupSize}
+          />
+          <DetailRow label="espacio requerido" value={exercise.spaceRequired} />
+          <DetailRow
+            label="requiere pareja"
+            value={exercise.requiresPartner ? "si" : "no"}
+          />
+        </dl>
+      </DetailSection>
 
-      <div className={cn("grid gap-3", isGlobal ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+      <DetailSection title="tags y materiales">
+        <dl className="grid gap-3 md:grid-cols-2">
+          <DetailRow
+            label="tags"
+            value={tags.length > 0 ? <BadgeList items={tags} /> : null}
+          />
+          <DetailRow
+            label="materiales"
+            value={
+              materials.length > 0 ? <BadgeList items={materials} /> : null
+            }
+          />
+        </dl>
+      </DetailSection>
+
+      <DetailSection title="notas entrenador">
+        <dl className="grid gap-3 lg:grid-cols-2">
+          <DetailRow
+            label="descripcion detallada"
+            value={exercise.detailedDescription}
+          />
+          <DetailRow label="notas para coach" value={exercise.coachNotes} />
+        </dl>
+      </DetailSection>
+
+      <DetailSection title="variantes y compatibilidades">
+        <dl className="grid gap-3 lg:grid-cols-2">
+          <DetailRow label="variantes" value={variants} />
+          <DetailRow label="compatibilidades" value={compatibilities} />
+        </dl>
+      </DetailSection>
+
+      <div
+        className={cn(
+          "grid gap-3",
+          isGlobal ? "sm:grid-cols-2" : "sm:grid-cols-3",
+        )}
+      >
         <Button
           type="button"
           variant="outline"
@@ -611,18 +670,20 @@ function ExerciseForm({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="exercise-name">nombre</Label>
-        <Input
-          id="exercise-name"
-          value={form.name}
-          onChange={(event) => onChange({ ...form, name: event.target.value })}
-          placeholder="jab-cross con desplazamiento"
-        />
-      </div>
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="exercise-name">nombre</Label>
+          <Input
+            id="exercise-name"
+            value={form.name}
+            onChange={(event) =>
+              onChange({ ...form, name: event.target.value })
+            }
+            placeholder="jab-cross con desplazamiento"
+          />
+        </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="exercise-category">categoria</Label>
           <Select
@@ -643,7 +704,9 @@ function ExerciseForm({
             </SelectContent>
           </Select>
         </div>
+      </div>
 
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="exercise-level">nivel</Label>
           <Select
@@ -685,45 +748,6 @@ function ExerciseForm({
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="exercise-short-description">descripcion corta</Label>
-        <Input
-          id="exercise-short-description"
-          value={form.shortDescription}
-          onChange={(event) =>
-            onChange({ ...form, shortDescription: event.target.value })
-          }
-          placeholder="combinacion tecnica para trabajar distancia"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="exercise-detailed-description">
-          descripcion detallada
-        </Label>
-        <Textarea
-          id="exercise-detailed-description"
-          rows={3}
-          value={form.detailedDescription}
-          onChange={(event) =>
-            onChange({ ...form, detailedDescription: event.target.value })
-          }
-        />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="exercise-goal">objetivo principal</Label>
-          <Input
-            id="exercise-goal"
-            value={form.mainGoal}
-            onChange={(event) =>
-              onChange({ ...form, mainGoal: event.target.value })
-            }
-          />
-        </div>
 
         <div className="space-y-2">
           <Label htmlFor="exercise-duration">duracion media min.</Label>
@@ -737,9 +761,45 @@ function ExerciseForm({
             }
           />
         </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-background/45 px-3 py-3">
+          <Label htmlFor="exercise-partner" className="text-sm font-medium">
+            requiere pareja
+          </Label>
+          <Switch
+            id="exercise-partner"
+            checked={form.requiresPartner}
+            onCheckedChange={(requiresPartner) =>
+              onChange({ ...form, requiresPartner })
+            }
+          />
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="exercise-short-description">descripcion corta</Label>
+          <Input
+            id="exercise-short-description"
+            value={form.shortDescription}
+            onChange={(event) =>
+              onChange({ ...form, shortDescription: event.target.value })
+            }
+            placeholder="combinacion tecnica para trabajar distancia"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="exercise-goal">objetivo principal</Label>
+          <Input
+            id="exercise-goal"
+            value={form.mainGoal}
+            onChange={(event) =>
+              onChange({ ...form, mainGoal: event.target.value })
+            }
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="exercise-group-size">tamano recomendado</Label>
           <Input
@@ -765,15 +825,17 @@ function ExerciseForm({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-background/45 px-3 py-3">
-        <Label htmlFor="exercise-partner" className="text-sm font-medium">
-          requiere pareja
+      <div className="space-y-2">
+        <Label htmlFor="exercise-detailed-description">
+          descripcion detallada
         </Label>
-        <Switch
-          id="exercise-partner"
-          checked={form.requiresPartner}
-          onCheckedChange={(requiresPartner) =>
-            onChange({ ...form, requiresPartner })
+        <Textarea
+          id="exercise-detailed-description"
+          rows={5}
+          className="min-h-32"
+          value={form.detailedDescription}
+          onChange={(event) =>
+            onChange({ ...form, detailedDescription: event.target.value })
           }
         />
       </div>
@@ -782,7 +844,8 @@ function ExerciseForm({
         <Label htmlFor="exercise-coach-notes">notas para coach</Label>
         <Textarea
           id="exercise-coach-notes"
-          rows={3}
+          rows={5}
+          className="min-h-32"
           value={form.coachNotes}
           onChange={(event) =>
             onChange({ ...form, coachNotes: event.target.value })
@@ -797,7 +860,12 @@ function ExerciseForm({
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Button type="button" variant="outline" className="bg-transparent" onClick={onCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          className="bg-transparent"
+          onClick={onCancel}
+        >
           cancelar
         </Button>
         <Button type="submit" disabled={isSubmitting}>
@@ -986,7 +1054,9 @@ function ExerciseCard({
 export function ExercisesContent() {
   const { activeOrganization, activeOrganizationId } = useActiveOrganization();
   const canManageExercises = isStaffOrganization(activeOrganization);
-  const exercisesOrganizationId = canManageExercises ? activeOrganizationId : null;
+  const exercisesOrganizationId = canManageExercises
+    ? activeOrganizationId
+    : null;
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState(ALL_VALUE);
   const [levelFilter, setLevelFilter] = useState(ALL_VALUE);
@@ -1028,7 +1098,9 @@ export function ExercisesContent() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
-  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
+  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(
+    null,
+  );
   const [form, setForm] = useState<ExerciseFormState>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -1107,7 +1179,9 @@ export function ExercisesContent() {
         : createExercise.mutateAsync(payload);
 
       toast.promise(mutationPromise, {
-        loading: isEditing ? "actualizando ejercicio..." : "creando ejercicio...",
+        loading: isEditing
+          ? "actualizando ejercicio..."
+          : "creando ejercicio...",
         success: isEditing ? "ejercicio actualizado" : "ejercicio creado",
         error: isEditing
           ? "no se pudo actualizar el ejercicio"
@@ -1118,7 +1192,9 @@ export function ExercisesContent() {
       closeForm();
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "No se pudo guardar el ejercicio.",
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el ejercicio.",
       );
     }
   };
@@ -1192,7 +1268,7 @@ export function ExercisesContent() {
       </section>
 
       <Dialog open={isFormOpen} onOpenChange={(open) => !open && closeForm()}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto lg:p-7">
           <DialogHeader>
             <DialogTitle>
               {isEditing ? "editar ejercicio" : "crear ejercicio"}
@@ -1261,7 +1337,7 @@ export function ExercisesContent() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto lg:p-7">
           <DialogHeader>
             <DialogTitle>{detailExercise?.name}</DialogTitle>
             <DialogDescription>
@@ -1312,7 +1388,9 @@ export function ExercisesContent() {
                   <SelectValue placeholder="categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_VALUE}>todas las categorias</SelectItem>
+                  <SelectItem value={ALL_VALUE}>
+                    todas las categorias
+                  </SelectItem>
                   {categoryOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -1335,12 +1413,17 @@ export function ExercisesContent() {
                 </SelectContent>
               </Select>
 
-              <Select value={intensityFilter} onValueChange={setIntensityFilter}>
+              <Select
+                value={intensityFilter}
+                onValueChange={setIntensityFilter}
+              >
                 <SelectTrigger id="exercise-intensity-filter">
                   <SelectValue placeholder="intensidad" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_VALUE}>todas las intensidades</SelectItem>
+                  <SelectItem value={ALL_VALUE}>
+                    todas las intensidades
+                  </SelectItem>
                   {intensityOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -1369,8 +1452,12 @@ export function ExercisesContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL_VALUE}>todos</SelectItem>
-                  <SelectItem value={GLOBAL_SOURCE_VALUE}>BoxPlanner</SelectItem>
-                  <SelectItem value={LOCAL_SOURCE_VALUE}>Mi gimnasio</SelectItem>
+                  <SelectItem value={GLOBAL_SOURCE_VALUE}>
+                    BoxPlanner
+                  </SelectItem>
+                  <SelectItem value={LOCAL_SOURCE_VALUE}>
+                    Mi gimnasio
+                  </SelectItem>
                 </SelectContent>
               </Select>
 

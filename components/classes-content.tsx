@@ -19,7 +19,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -144,7 +148,9 @@ function toDateTimeInputValue(value?: string | Date | null) {
     return "";
   }
 
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000,
+  );
   return offsetDate.toISOString().slice(0, 16);
 }
 
@@ -171,7 +177,10 @@ function formatSessionDate(value: string | Date) {
   };
 }
 
-function formatDuration(startsAt: string | Date, endsAt?: string | Date | null) {
+function formatDuration(
+  startsAt: string | Date,
+  endsAt?: string | Date | null,
+) {
   if (!endsAt) {
     return null;
   }
@@ -193,8 +202,11 @@ function formatDuration(startsAt: string | Date, endsAt?: string | Date | null) 
 
 function normalizeStatus(status?: string | null): ClassSessionStatusCode {
   return (
-    statusAliases[String(status ?? "SCHEDULED").trim().toLowerCase()] ??
-    "SCHEDULED"
+    statusAliases[
+      String(status ?? "SCHEDULED")
+        .trim()
+        .toLowerCase()
+    ] ?? "SCHEDULED"
   );
 }
 
@@ -208,7 +220,9 @@ function getDisplayState(session: ClassSession): ClassSessionDisplayState {
 
 function getTrainingTitle(session: ClassSession) {
   return (
-    session.classType?.title ?? session.training?.title ?? "sin estructura todavía"
+    session.classType?.title ??
+    session.training?.title ??
+    "sin estructura todavía"
   );
 }
 
@@ -399,13 +413,16 @@ export function ClassesContent() {
   const { activeOrganization, activeOrganizationId } = useActiveOrganization();
   const canManageClasses = isStaffOrganization(activeOrganization);
   const classesOrganizationId = canManageClasses ? activeOrganizationId : null;
-  const [statusFilter, setStatusFilter] = useState<ClassSessionListFilter>("all");
+  const [statusFilter, setStatusFilter] =
+    useState<ClassSessionListFilter>("all");
   const [classTypeFilter, setClassTypeFilter] = useState(ALL_CLASS_TYPES_VALUE);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebouncedValue(searchTerm.trim());
   const classSessionFilters = useMemo(
     () => ({
-      ...(statusFilter === "all" ? { status: "ALL" as const, enabled: "ALL" as const } : {}),
+      ...(statusFilter === "all"
+        ? { status: "ALL" as const, enabled: "ALL" as const }
+        : {}),
       ...(statusFilter === "enabled" ? { enabled: "true" as const } : {}),
       ...(statusFilter === "disabled" ? { enabled: "false" as const } : {}),
       ...(statusFilter === "cancelled" ? { status: "CANCELLED" as const } : {}),
@@ -423,14 +440,20 @@ export function ClassesContent() {
   const trainingsQuery = useTrainings(classesOrganizationId);
   const createClassSession = useCreateClassSession(classesOrganizationId);
   const updateClassSession = useUpdateClassSession(classesOrganizationId);
-  const updateClassSessionEnabled =
-    useUpdateClassSessionEnabled(classesOrganizationId);
-  const updateClassSessionStatus =
-    useUpdateClassSessionStatus(classesOrganizationId);
+  const updateClassSessionEnabled = useUpdateClassSessionEnabled(
+    classesOrganizationId,
+  );
+  const updateClassSessionStatus = useUpdateClassSessionStatus(
+    classesOrganizationId,
+  );
   const deleteClassSession = useDeleteClassSession(classesOrganizationId);
   const [form, setForm] = useState<ClassSessionFormState>(initialForm);
-  const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
-  const [sessionToDelete, setSessionToDelete] = useState<ClassSession | null>(null);
+  const [editingSession, setEditingSession] = useState<ClassSession | null>(
+    null,
+  );
+  const [sessionToDelete, setSessionToDelete] = useState<ClassSession | null>(
+    null,
+  );
   const [editForm, setEditForm] = useState<ClassSessionFormState>(initialForm);
   const [editStatus, setEditStatus] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -501,7 +524,9 @@ export function ClassesContent() {
       setForm(initialForm);
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "No se pudo programar la clase.",
+        error instanceof Error
+          ? error.message
+          : "No se pudo programar la clase.",
       );
     }
   };
@@ -520,7 +545,9 @@ export function ClassesContent() {
       endsAt: toDateTimeInputValue(session.endsAt),
       notes: session.notes ?? "",
     });
-    setEditStatus(session.status ? normalizeStatus(session.status) : "SCHEDULED");
+    setEditStatus(
+      session.status ? normalizeStatus(session.status) : "SCHEDULED",
+    );
     setEditError(null);
   };
 
@@ -585,7 +612,9 @@ export function ClassesContent() {
       setEditingSession(null);
     } catch (error) {
       setEditError(
-        error instanceof Error ? error.message : "No se pudo actualizar la clase.",
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar la clase.",
       );
     }
   };
@@ -682,7 +711,7 @@ export function ClassesContent() {
           }
         }}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-3xl lg:p-7">
           <DialogHeader>
             <DialogTitle>editar clase</DialogTitle>
             <DialogDescription>
@@ -690,7 +719,7 @@ export function ClassesContent() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleEditSubmit} className="space-y-4">
+          <form onSubmit={handleEditSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="edit-class-title">titulo</Label>
               <Input
@@ -777,7 +806,8 @@ export function ClassesContent() {
               <Label htmlFor="edit-class-notes">notas opcionales</Label>
               <Textarea
                 id="edit-class-notes"
-                rows={3}
+                rows={4}
+                className="min-h-28"
                 value={editForm.notes}
                 onChange={(event) =>
                   setEditForm({ ...editForm, notes: event.target.value })
@@ -801,7 +831,9 @@ export function ClassesContent() {
                 cancelar
               </Button>
               <Button type="submit" disabled={updateClassSession.isPending}>
-                {updateClassSession.isPending ? "guardando..." : "guardar cambios"}
+                {updateClassSession.isPending
+                  ? "guardando..."
+                  : "guardar cambios"}
               </Button>
             </div>
           </form>
@@ -887,7 +919,10 @@ export function ClassesContent() {
               <Select
                 value={form.trainingId}
                 onValueChange={(trainingId) =>
-                  setForm({ ...form, trainingId: toOptionalTrainingId(trainingId) })
+                  setForm({
+                    ...form,
+                    trainingId: toOptionalTrainingId(trainingId),
+                  })
                 }
                 disabled={trainingsQuery.isLoading || trainingsQuery.isError}
               >
@@ -966,7 +1001,9 @@ export function ClassesContent() {
               disabled={createClassSession.isPending}
             >
               <CalendarClock className="h-4 w-4" />
-              {createClassSession.isPending ? "programando..." : "programar clase"}
+              {createClassSession.isPending
+                ? "programando..."
+                : "programar clase"}
             </Button>
           </form>
         </Card>
@@ -988,7 +1025,9 @@ export function ClassesContent() {
                   key={filter.value}
                   type="button"
                   size="sm"
-                  variant={statusFilter === filter.value ? "default" : "outline"}
+                  variant={
+                    statusFilter === filter.value ? "default" : "outline"
+                  }
                   className={cn(
                     "h-9",
                     statusFilter !== filter.value && "bg-transparent",
@@ -1044,7 +1083,9 @@ export function ClassesContent() {
           {classSessionsQuery.error && (
             <ErrorState
               title="no pudimos cargar las clases"
-              description={getClassSessionsErrorMessage(classSessionsQuery.error)}
+              description={getClassSessionsErrorMessage(
+                classSessionsQuery.error,
+              )}
               actionLabel="reintentar"
               onAction={() => void classSessionsQuery.refetch()}
               className="min-h-[320px]"
@@ -1074,7 +1115,8 @@ export function ClassesContent() {
             sessions.map((session) => {
               const isUpdatingThisStatus =
                 updateClassSessionStatus.isPending &&
-                updateClassSessionStatus.variables?.classSessionId === session.id;
+                updateClassSessionStatus.variables?.classSessionId ===
+                  session.id;
               const isUpdatingThisEnabled =
                 updateClassSessionEnabled.isPending &&
                 updateClassSessionEnabled.variables?.classSessionId ===

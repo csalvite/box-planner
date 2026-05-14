@@ -16,7 +16,11 @@ import { motion } from "framer-motion";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +65,9 @@ export function TrainingsContent() {
   const { t } = useAppTranslation();
   const { activeOrganization, activeOrganizationId } = useActiveOrganization();
   const canManageTrainings = isStaffOrganization(activeOrganization);
-  const trainingsOrganizationId = canManageTrainings ? activeOrganizationId : null;
+  const trainingsOrganizationId = canManageTrainings
+    ? activeOrganizationId
+    : null;
   const trainingsQuery = useTrainings(trainingsOrganizationId);
   const deleteTraining = useDeleteTraining(trainingsOrganizationId);
   const trainings = trainingsQuery.data ?? [];
@@ -123,7 +129,7 @@ export function TrainingsContent() {
       </motion.div>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-2xl lg:p-7">
           <DialogHeader>
             <DialogTitle>{t("dashboard.newTrainingTitle")}</DialogTitle>
             <DialogDescription>
@@ -211,9 +217,7 @@ export function TrainingsContent() {
                             deleteTraining.isPending &&
                             deleteTraining.variables === training.id
                           }
-                          onClick={() =>
-                            void handleDeleteTraining(training.id)
-                          }
+                          onClick={() => void handleDeleteTraining(training.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -249,10 +253,7 @@ export function TrainingsContent() {
                         </div>
                       </div>
 
-                      <Button
-                        asChild
-                        className="mt-auto w-full"
-                      >
+                      <Button asChild className="mt-auto w-full">
                         <Link href={`/trainings/${training.id}`}>
                           <Blocks className="h-4 w-4" />
                           ver estructura
