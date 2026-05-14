@@ -5,9 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   CalendarDays,
-  Dumbbell,
   Home,
-  Layers,
   Settings,
   UsersRound,
 } from "lucide-react";
@@ -28,12 +26,6 @@ const navItems = [
     staffOnly: true,
   },
   {
-    href: "/trainings",
-    labelKey: "nav.trainings",
-    icon: Dumbbell,
-    staffOnly: true,
-  },
-  {
     href: "/exercises",
     labelKey: "nav.exercises",
     icon: Activity,
@@ -44,13 +36,6 @@ const navItems = [
     href: "/members",
     labelKey: "nav.members",
     icon: UsersRound,
-    staffOnly: true,
-  },
-  {
-    href: "/blocks",
-    labelKey: "nav.blocks",
-    icon: Layers,
-    secondary: true,
     staffOnly: true,
   },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
@@ -89,9 +74,7 @@ export function MobileNav() {
                 "flex min-w-[4.75rem] flex-1 flex-col items-center gap-1 px-2 py-3 text-xs transition-colors",
                 isActive
                   ? "text-primary"
-                  : item.secondary
-                    ? "text-muted-foreground/70 hover:text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <motion.div

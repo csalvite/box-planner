@@ -1,29 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   CalendarClock,
   Clock,
+  Dumbbell,
   FileText,
-  Layers,
-  Pencil,
   Plus,
   Power,
   Search,
   Trash2,
-  Dumbbell,
   UsersRound,
   XCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import {
-  EmptyState,
-  ErrorState,
-  LoadingState,
-} from "@/components/ui/data-state";
+import { ClassSessionEditor } from "@/components/class-session-editor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,22 +25,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import {
@@ -60,34 +44,29 @@ import {
   useUpdateClassSessionEnabled,
   useUpdateClassSessionStatus,
 } from "@/hooks/use-class-sessions";
-import { useTrainings } from "@/hooks/use-trainings";
 import type {
   ClassSession,
   ClassSessionStatusCode,
+  UpdateClassSessionInput,
 } from "@/lib/api/class-sessions";
 import { isStaffOrganization } from "@/lib/organization-role";
 import { cn } from "@/lib/utils";
 
 interface ClassSessionFormState {
   title: string;
-  trainingId: string;
   startsAt: string;
   endsAt: string;
+  durationMinutes: string;
   notes: string;
 }
 
 const initialForm: ClassSessionFormState = {
   title: "",
-  trainingId: "",
   startsAt: "",
   endsAt: "",
+  durationMinutes: "",
   notes: "",
 };
-
-const NO_TRAINING_VALUE = "no-training";
-const ALL_CLASS_TYPES_VALUE = "all-class-types";
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ClassSessionDisplayState = "ENABLED" | "DISABLED" | "CANCELLED";
 type ClassSessionListFilter = "all" | "enabled" | "disabled" | "cancelled";
@@ -130,28 +109,22 @@ function toIsoDateTime(value: string) {
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toISOString();
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function toDateTimeInputValue(value?: string | Date | null) {
-  if (!value) {
-    return "";
+function addMinutesToIsoDateTime(value: string, minutes: string) {
+  const date = new Date(value);
+  const durationMinutes = Number.parseInt(minutes, 10);
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    !Number.isFinite(durationMinutes) ||
+    durationMinutes <= 0
+  ) {
+    return undefined;
   }
 
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const offsetDate = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000,
-  );
-  return offsetDate.toISOString().slice(0, 16);
+  return new Date(date.getTime() + durationMinutes * 60000).toISOString();
 }
 
 function formatSessionDate(value: string | Date) {
@@ -218,30 +191,6 @@ function getDisplayState(session: ClassSession): ClassSessionDisplayState {
   return session.isEnabled === false ? "DISABLED" : "ENABLED";
 }
 
-function getTrainingTitle(session: ClassSession) {
-  return (
-    session.classType?.title ??
-    session.training?.title ??
-    "sin estructura todavía"
-  );
-}
-
-function toOptionalTrainingId(trainingId: string) {
-  return trainingId === NO_TRAINING_VALUE ? "" : trainingId;
-}
-
-function getUpdateTrainingId(trainingId: string) {
-  if (trainingId === NO_TRAINING_VALUE) {
-    return null;
-  }
-
-  return trainingId || undefined;
-}
-
-function isUuid(value: string) {
-  return UUID_PATTERN.test(value);
-}
-
 function getAttendanceCount(session: ClassSession) {
   return (
     session.attendanceCount ??
@@ -295,7 +244,6 @@ function ClassSessionCard({
   const dateTime = formatSessionDate(session.startsAt);
   const displayState = getDisplayState(session);
   const duration = formatDuration(session.startsAt, session.endsAt);
-  const hasTraining = Boolean(session.classType ?? session.training);
   const isMuted = displayState === "DISABLED" || displayState === "CANCELLED";
   const toggleStatusLabel =
     displayState === "DISABLED" ? "habilitar" : "deshabilitar";
@@ -303,7 +251,7 @@ function ClassSessionCard({
   return (
     <Card
       className={cn(
-        "border-border/80 bg-card/70 p-5 shadow-md shadow-black/15 transition",
+        "border-border/80 bg-card/70 p-4 shadow-md shadow-black/15 transition md:p-5",
         isMuted && "border-border/45 bg-card/45 opacity-75 shadow-black/5",
       )}
     >
@@ -339,10 +287,6 @@ function ClassSessionCard({
                 </span>
               ) : null}
               <span className="flex items-center gap-1.5">
-                <Dumbbell className="h-4 w-4" />
-                {getTrainingTitle(session)}
-              </span>
-              <span className="flex items-center gap-1.5">
                 <UsersRound className="h-4 w-4" />
                 {getAttendanceCount(session)} apuntados
               </span>
@@ -359,18 +303,9 @@ function ClassSessionCard({
 
         {canEdit ? (
           <div className="grid gap-2 sm:min-w-44">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full bg-transparent"
-              onClick={onEdit}
-            >
-              {hasTraining ? (
-                <Pencil className="h-4 w-4" />
-              ) : (
-                <Layers className="h-4 w-4" />
-              )}
-              {hasTraining ? "editar" : "añadir estructura"}
+            <Button type="button" className="w-full" onClick={onEdit}>
+              <Dumbbell className="h-4 w-4" />
+              preparar clase
             </Button>
             <Button
               type="button"
@@ -415,7 +350,6 @@ export function ClassesContent() {
   const classesOrganizationId = canManageClasses ? activeOrganizationId : null;
   const [statusFilter, setStatusFilter] =
     useState<ClassSessionListFilter>("all");
-  const [classTypeFilter, setClassTypeFilter] = useState(ALL_CLASS_TYPES_VALUE);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebouncedValue(searchTerm.trim());
   const classSessionFilters = useMemo(
@@ -426,18 +360,14 @@ export function ClassesContent() {
       ...(statusFilter === "enabled" ? { enabled: "true" as const } : {}),
       ...(statusFilter === "disabled" ? { enabled: "false" as const } : {}),
       ...(statusFilter === "cancelled" ? { status: "CANCELLED" as const } : {}),
-      ...(classTypeFilter !== ALL_CLASS_TYPES_VALUE
-        ? { trainingId: classTypeFilter }
-        : {}),
       ...(debouncedSearchTerm ? { search: debouncedSearchTerm } : {}),
     }),
-    [classTypeFilter, debouncedSearchTerm, statusFilter],
+    [debouncedSearchTerm, statusFilter],
   );
   const classSessionsQuery = useClassSessions(
     classesOrganizationId,
     classSessionFilters,
   );
-  const trainingsQuery = useTrainings(classesOrganizationId);
   const createClassSession = useCreateClassSession(classesOrganizationId);
   const updateClassSession = useUpdateClassSession(classesOrganizationId);
   const updateClassSessionEnabled = useUpdateClassSessionEnabled(
@@ -454,12 +384,8 @@ export function ClassesContent() {
   const [sessionToDelete, setSessionToDelete] = useState<ClassSession | null>(
     null,
   );
-  const [editForm, setEditForm] = useState<ClassSessionFormState>(initialForm);
-  const [editStatus, setEditStatus] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
 
-  const trainings = trainingsQuery.data ?? [];
   const sessions = useMemo(
     () =>
       [...(classSessionsQuery.data ?? [])].sort(
@@ -498,7 +424,7 @@ export function ClassesContent() {
     const startsAt = toIsoDateTime(form.startsAt);
     const endsAt = form.endsAt
       ? (toIsoDateTime(form.endsAt) ?? undefined)
-      : undefined;
+      : addMinutesToIsoDateTime(form.startsAt, form.durationMinutes);
 
     if (!startsAt || (form.endsAt && !endsAt)) {
       setFormError("Revisa la fecha y hora de la clase.");
@@ -508,115 +434,35 @@ export function ClassesContent() {
     try {
       const createPromise = createClassSession.mutateAsync({
         title: form.title.trim(),
-        ...(form.trainingId ? { trainingId: form.trainingId } : {}),
         startsAt,
         endsAt,
         notes: form.notes.trim() || undefined,
       });
 
       toast.promise(createPromise, {
-        loading: "programando clase...",
-        success: "clase programada",
-        error: "no se pudo programar la clase",
+        loading: "creando clase...",
+        success: "clase creada",
+        error: "no se pudo crear la clase",
       });
 
-      await createPromise;
+      const createdSession = await createPromise;
       setForm(initialForm);
+      setEditingSession(createdSession);
     } catch (error) {
       setFormError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo programar la clase.",
+        error instanceof Error ? error.message : "No se pudo crear la clase.",
       );
     }
   };
 
-  const openEditDialog = (session: ClassSession) => {
-    setEditingSession(session);
-    setEditForm({
-      title: session.title,
-      trainingId:
-        session.classTypeId ??
-        session.classType?.id ??
-        session.trainingId ??
-        session.training?.id ??
-        NO_TRAINING_VALUE,
-      startsAt: toDateTimeInputValue(session.startsAt),
-      endsAt: toDateTimeInputValue(session.endsAt),
-      notes: session.notes ?? "",
+  const handleEditorSave = async (
+    classSessionId: string,
+    input: UpdateClassSessionInput,
+  ) => {
+    await updateClassSession.mutateAsync({
+      classSessionId,
+      input,
     });
-    setEditStatus(
-      session.status ? normalizeStatus(session.status) : "SCHEDULED",
-    );
-    setEditError(null);
-  };
-
-  const handleEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setEditError(null);
-
-    if (!editingSession) {
-      return;
-    }
-
-    if (!editForm.title.trim()) {
-      setEditError("El titulo es obligatorio.");
-      return;
-    }
-
-    if (!editForm.startsAt) {
-      setEditError("Selecciona fecha y hora de inicio.");
-      return;
-    }
-
-    const trainingId = getUpdateTrainingId(editForm.trainingId);
-
-    if (trainingId && !isUuid(trainingId)) {
-      setEditError("Selecciona una clase tipo valida.");
-      return;
-    }
-
-    const startsAt = toIsoDateTime(editForm.startsAt);
-    const endsAt = editForm.endsAt
-      ? (toIsoDateTime(editForm.endsAt) ?? undefined)
-      : undefined;
-
-    if (!startsAt || (editForm.endsAt && !endsAt)) {
-      setEditError("Revisa la fecha y hora de la clase.");
-      return;
-    }
-
-    try {
-      const updatePromise = updateClassSession.mutateAsync({
-        classSessionId: editingSession.id,
-        input: {
-          title: editForm.title.trim(),
-          ...(trainingId !== undefined ? { trainingId } : {}),
-          startsAt,
-          endsAt,
-          notes: editForm.notes.trim() || undefined,
-          status: normalizeStatus(editStatus),
-        },
-      });
-
-      toast.promise(updatePromise, {
-        loading: "actualizando clase...",
-        success: "clase actualizada",
-        error: (error) =>
-          error instanceof Error
-            ? error.message
-            : "no se pudo actualizar la clase",
-      });
-
-      await updatePromise;
-      setEditingSession(null);
-    } catch (error) {
-      setEditError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo actualizar la clase.",
-      );
-    }
   };
 
   const handleStatusChange = async (
@@ -692,153 +538,37 @@ export function ClassesContent() {
             Clases
           </h1>
           <p className="mt-1 text-muted-foreground">
-            programa las proximas clases para tus alumnos.
+            crea clases reales con secciones y ejercicios desde la biblioteca.
           </p>
         </div>
-        <Button asChild size="lg" className="w-full md:w-auto">
-          <Link href="#programar-clase">
-            <Plus className="h-4 w-4" />
-            programar clase
-          </Link>
+        <Button
+          type="button"
+          size="lg"
+          className="w-full md:w-auto"
+          onClick={() =>
+            document
+              .getElementById("crear-clase")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+        >
+          <Plus className="h-4 w-4" />
+          crear nueva clase
         </Button>
       </section>
 
-      <Dialog
+      <ClassSessionEditor
         open={Boolean(editingSession)}
+        organizationId={classesOrganizationId}
+        session={editingSession}
+        isSaving={updateClassSession.isPending}
+        saveError={updateClassSession.error}
+        onSaveClass={handleEditorSave}
         onOpenChange={(open) => {
           if (!open) {
             setEditingSession(null);
           }
         }}
-      >
-        <DialogContent className="max-w-3xl lg:p-7">
-          <DialogHeader>
-            <DialogTitle>editar clase</DialogTitle>
-            <DialogDescription>
-              ajusta horario, estructura opcional, notas o estado de la sesion.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleEditSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="edit-class-title">titulo</Label>
-              <Input
-                id="edit-class-title"
-                value={editForm.title}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, title: event.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-class-training">
-                usar plantilla/clase tipo opcional
-              </Label>
-              <Select
-                value={editForm.trainingId}
-                onValueChange={(trainingId) =>
-                  setEditForm({
-                    ...editForm,
-                    trainingId,
-                  })
-                }
-                disabled={trainingsQuery.isLoading || trainingsQuery.isError}
-              >
-                <SelectTrigger id="edit-class-training" className="w-full">
-                  <SelectValue placeholder="opcional: selecciona una clase tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_TRAINING_VALUE}>
-                    sin estructura todavía
-                  </SelectItem>
-                  {trainings.map((training) => (
-                    <SelectItem key={training.id} value={training.id}>
-                      {training.title} -{" "}
-                      {Math.round(training.totalDurationSec / 60)} min
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="edit-class-start">inicio</Label>
-                <Input
-                  id="edit-class-start"
-                  type="datetime-local"
-                  value={editForm.startsAt}
-                  onChange={(event) =>
-                    setEditForm({ ...editForm, startsAt: event.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-class-end">fin opcional</Label>
-                <Input
-                  id="edit-class-end"
-                  type="datetime-local"
-                  value={editForm.endsAt}
-                  onChange={(event) =>
-                    setEditForm({ ...editForm, endsAt: event.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-class-status">estado</Label>
-              <Select value={editStatus} onValueChange={setEditStatus}>
-                <SelectTrigger id="edit-class-status" className="w-full">
-                  <SelectValue placeholder="selecciona estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SCHEDULED">programada</SelectItem>
-                  <SelectItem value="COMPLETED">completada</SelectItem>
-                  <SelectItem value="CANCELLED">cancelada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-class-notes">notas opcionales</Label>
-              <Textarea
-                id="edit-class-notes"
-                rows={4}
-                className="min-h-28"
-                value={editForm.notes}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, notes: event.target.value })
-                }
-              />
-            </div>
-
-            {editError ? (
-              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {editError}
-              </p>
-            ) : null}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-transparent"
-                onClick={() => setEditingSession(null)}
-              >
-                cancelar
-              </Button>
-              <Button type="submit" disabled={updateClassSession.isPending}>
-                {updateClassSession.isPending
-                  ? "guardando..."
-                  : "guardar cambios"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      />
 
       <AlertDialog
         open={Boolean(sessionToDelete)}
@@ -852,7 +582,7 @@ export function ClassesContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>borrar clase definitivamente</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará la clase y sus reservas asociadas. No se
+              Esta accion eliminara la clase y sus reservas asociadas. No se
               puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -882,17 +612,18 @@ export function ClassesContent() {
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] xl:items-start">
         <Card
-          id="programar-clase"
+          id="crear-clase"
           className="border-border/80 bg-card/70 p-5 shadow-md shadow-black/10"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                  programar clase
+                  crear nueva clase
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  crea la clase y añade estructura después si quieres.
+                  primero guarda lo basico; despues anade secciones y
+                  ejercicios.
                 </p>
               </div>
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -910,37 +641,6 @@ export function ClassesContent() {
                 }
                 placeholder="clase de tecnica"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="class-training">
-                usar plantilla/clase tipo opcional
-              </Label>
-              <Select
-                value={form.trainingId}
-                onValueChange={(trainingId) =>
-                  setForm({
-                    ...form,
-                    trainingId: toOptionalTrainingId(trainingId),
-                  })
-                }
-                disabled={trainingsQuery.isLoading || trainingsQuery.isError}
-              >
-                <SelectTrigger id="class-training" className="w-full">
-                  <SelectValue placeholder="opcional: selecciona una clase tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_TRAINING_VALUE}>
-                    sin estructura todavía
-                  </SelectItem>
-                  {trainings.map((training) => (
-                    <SelectItem key={training.id} value={training.id}>
-                      {training.title} -{" "}
-                      {Math.round(training.totalDurationSec / 60)} min
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -967,6 +667,20 @@ export function ClassesContent() {
                   }
                 />
               </div>
+
+              <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+                <Label htmlFor="class-duration">duracion min.</Label>
+                <Input
+                  id="class-duration"
+                  type="number"
+                  min="1"
+                  value={form.durationMinutes}
+                  onChange={(event) =>
+                    setForm({ ...form, durationMinutes: event.target.value })
+                  }
+                  placeholder="60"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -982,17 +696,11 @@ export function ClassesContent() {
               />
             </div>
 
-            {formError && (
+            {formError ? (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {formError}
               </p>
-            )}
-
-            {trainingsQuery.error && (
-              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                no pudimos cargar clases tipo. puedes programar sin plantilla.
-              </p>
-            )}
+            ) : null}
 
             <Button
               type="submit"
@@ -1001,9 +709,7 @@ export function ClassesContent() {
               disabled={createClassSession.isPending}
             >
               <CalendarClock className="h-4 w-4" />
-              {createClassSession.isPending
-                ? "programando..."
-                : "programar clase"}
+              {createClassSession.isPending ? "creando..." : "crear clase"}
             </Button>
           </form>
         </Card>
@@ -1039,48 +745,26 @@ export function ClassesContent() {
               ))}
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[minmax(180px,240px)_minmax(220px,1fr)]">
-              <Select
-                value={classTypeFilter}
-                onValueChange={setClassTypeFilter}
-                disabled={trainingsQuery.isLoading || trainingsQuery.isError}
-              >
-                <SelectTrigger id="class-type-filter" className="w-full">
-                  <SelectValue placeholder="tipo de clase" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_CLASS_TYPES_VALUE}>
-                    todos los tipos
-                  </SelectItem>
-                  {trainings.map((training) => (
-                    <SelectItem key={training.id} value={training.id}>
-                      {training.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="buscar por titulo"
-                  className="pl-9"
-                />
-              </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="buscar por titulo"
+                className="pl-9"
+              />
             </div>
           </div>
 
-          {classSessionsQuery.isLoading && (
+          {classSessionsQuery.isLoading ? (
             <LoadingState
               title="cargando clases"
               description="estamos leyendo las clases programadas."
               className="min-h-[320px]"
             />
-          )}
+          ) : null}
 
-          {classSessionsQuery.error && (
+          {classSessionsQuery.error ? (
             <ErrorState
               title="no pudimos cargar las clases"
               description={getClassSessionsErrorMessage(
@@ -1090,25 +774,25 @@ export function ClassesContent() {
               onAction={() => void classSessionsQuery.refetch()}
               className="min-h-[320px]"
             />
-          )}
+          ) : null}
 
-          {deleteClassSession.error && (
+          {deleteClassSession.error ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {deleteClassSession.error.message}
             </p>
-          )}
+          ) : null}
 
-          {updateClassSessionStatus.error && (
+          {updateClassSessionStatus.error ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {updateClassSessionStatus.error.message}
             </p>
-          )}
+          ) : null}
 
-          {updateClassSessionEnabled.error && (
+          {updateClassSessionEnabled.error ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {updateClassSessionEnabled.error.message}
             </p>
-          )}
+          ) : null}
 
           {!classSessionsQuery.isLoading &&
             !classSessionsQuery.error &&
@@ -1134,7 +818,7 @@ export function ClassesContent() {
                   isUpdatingStatus={isUpdatingThisStatus}
                   isUpdatingEnabled={isUpdatingThisEnabled}
                   canEdit={canManageClasses}
-                  onEdit={() => openEditDialog(session)}
+                  onEdit={() => setEditingSession(session)}
                   onToggleEnabled={() =>
                     void handleEnabledChange(
                       session.id,
@@ -1154,7 +838,7 @@ export function ClassesContent() {
             sessions.length === 0 && (
               <EmptyState
                 title="todavia no hay clases programadas"
-                description="programa la primera clase para que los alumnos vean que les espera."
+                description="crea la primera clase y preparala con secciones y ejercicios."
                 icon={CalendarClock}
                 className="min-h-[320px]"
               />

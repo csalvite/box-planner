@@ -1,34 +1,30 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Activity,
   CalendarDays,
-  Dumbbell,
   Home,
-  Layers,
   Settings,
   UsersRound,
-} from "lucide-react"
-import { LanguageSwitcher } from "@/components/language-switcher"
-import { LogoutButton } from "@/components/logout-button"
-import { ActiveOrganizationDisplay } from "@/components/active-organization-display"
-import { UserNavSummary } from "@/components/user-nav-summary"
-import { useAppTranslation } from "@/hooks/use-app-translation"
-import { cn } from "@/lib/utils"
-import { useActiveOrganization } from "@/components/providers/organization-provider"
-import { isStaffOrganization } from "@/lib/organization-role"
+} from "lucide-react";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { LogoutButton } from "@/components/logout-button";
+import { ActiveOrganizationDisplay } from "@/components/active-organization-display";
+import { UserNavSummary } from "@/components/user-nav-summary";
+import { useAppTranslation } from "@/hooks/use-app-translation";
+import { cn } from "@/lib/utils";
+import { useActiveOrganization } from "@/components/providers/organization-provider";
+import { isStaffOrganization } from "@/lib/organization-role";
 
 const navItems = [
-  { href: "/", labelKey: "nav.home", icon: Home },
   {
     href: "/classes",
     labelKey: "nav.classes",
     icon: CalendarDays,
     staffOnly: true,
   },
-  { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell, staffOnly: true },
   {
     href: "/exercises",
     labelKey: "nav.exercises",
@@ -41,17 +37,17 @@ const navItems = [
     icon: UsersRound,
     staffOnly: true,
   },
-  { href: "/blocks", labelKey: "nav.blocks", icon: Layers, secondary: true, staffOnly: true },
+  { href: "/", labelKey: "nav.home", icon: Home },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
-]
+];
 
 export function DesktopNav() {
-  const pathname = usePathname()
-  const { t } = useAppTranslation()
-  const { activeOrganization } = useActiveOrganization()
+  const pathname = usePathname();
+  const { t } = useAppTranslation();
+  const { activeOrganization } = useActiveOrganization();
   const visibleNavItems = navItems.filter(
     (item) => !item.staffOnly || isStaffOrganization(activeOrganization),
-  )
+  );
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-border bg-card md:block">
@@ -65,8 +61,8 @@ export function DesktopNav() {
 
         <nav className="flex-1 space-y-1 p-4">
           {visibleNavItems.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
 
             return (
               <Link
@@ -76,15 +72,13 @@ export function DesktopNav() {
                   "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground"
-                    : item.secondary
-                      ? "text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
                 <Icon className="h-5 w-5" />
                 {t(item.labelKey)}
               </Link>
-            )
+            );
           })}
         </nav>
 
@@ -95,5 +89,5 @@ export function DesktopNav() {
         </div>
       </div>
     </aside>
-  )
+  );
 }

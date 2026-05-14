@@ -1,17 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import {
-  CalendarClock,
-  Clock,
-  Dumbbell,
-  Layers,
-  Plus,
-  UsersRound,
-} from "lucide-react";
+import { Activity, CalendarClock, Clock, Plus, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import { StudentDashboardContent } from "@/components/student-dashboard-content";
 import { useClassSessions } from "@/hooks/use-class-sessions";
@@ -59,7 +56,6 @@ function getNextSession(sessions: ClassSession[]) {
 
 function NextClassCard({ session }: { session: ClassSession }) {
   const dateTime = formatSessionDate(session.startsAt);
-  const blockCount = session.training?.blocks?.length ?? 0;
 
   return (
     <Card className="border-primary/20 bg-card/80 p-5 shadow-md shadow-black/10 md:p-6">
@@ -78,9 +74,6 @@ function NextClassCard({ session }: { session: ClassSession }) {
             <h2 className="text-2xl font-semibold leading-tight text-foreground md:text-3xl">
               {session.title}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {session.training?.title ?? "clase tipo pendiente"}
-            </p>
           </div>
 
           {session.notes ? (
@@ -90,7 +83,7 @@ function NextClassCard({ session }: { session: ClassSession }) {
           ) : null}
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[420px]">
+        <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[320px]">
           <div className="rounded-md border border-border/70 bg-background/45 px-3 py-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <CalendarClock className="h-3.5 w-3.5" />
@@ -107,15 +100,6 @@ function NextClassCard({ session }: { session: ClassSession }) {
             </div>
             <p className="mt-1 text-sm font-semibold text-foreground">
               {dateTime.time}
-            </p>
-          </div>
-          <div className="rounded-md border border-border/70 bg-background/45 px-3 py-3">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Layers className="h-3.5 w-3.5" />
-              partes
-            </div>
-            <p className="mt-1 text-sm font-semibold text-foreground">
-              {blockCount}
             </p>
           </div>
         </div>
@@ -154,17 +138,30 @@ export function DashboardContent() {
             Tu proxima clase
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground md:text-lg">
-            empieza por programar clases; las clases tipo y las partes quedan
-            como apoyo para prepararlas mas rapido.
+            prepara la clase de manana en pocos pasos: crea la clase, anade
+            secciones y suma ejercicios desde tu biblioteca.
           </p>
         </div>
 
-        <Button asChild size="lg" className="w-full md:w-auto">
-          <Link href="/classes">
-            <Plus className="h-4 w-4" />
-            crear tu primera clase
-          </Link>
-        </Button>
+        <div className="grid gap-2 sm:grid-cols-2 md:w-auto">
+          <Button asChild size="lg" className="w-full">
+            <Link href="/classes">
+              <Plus className="h-4 w-4" />
+              crear clase
+            </Link>
+          </Button>
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="w-full bg-transparent"
+          >
+            <Link href="/exercises">
+              <Activity className="h-4 w-4" />
+              crear ejercicio
+            </Link>
+          </Button>
+        </div>
       </section>
 
       {classSessionsQuery.isLoading && (
@@ -194,7 +191,7 @@ export function DashboardContent() {
         !nextSession && (
           <EmptyState
             title="todavia no hay clases programadas"
-            description="crea la primera clase para que tus alumnos sepan que entreno les espera."
+            description="crea la primera clase y preparala con secciones y ejercicios."
             icon={CalendarClock}
             actionLabel="crear tu primera clase"
             onAction={() => {
@@ -213,7 +210,7 @@ export function DashboardContent() {
             <div>
               <h2 className="font-semibold text-foreground">Clases</h2>
               <p className="text-sm text-muted-foreground">
-                programa y revisa sesiones.
+                crea y prepara sesiones reales.
               </p>
             </div>
           </div>
@@ -221,12 +218,12 @@ export function DashboardContent() {
         <Card className="border-border/80 bg-card/65 p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-chart-2/15 text-chart-2">
-              <Dumbbell className="h-5 w-5" />
+              <Activity className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-semibold text-foreground">Clases tipo</h2>
+              <h2 className="font-semibold text-foreground">Ejercicios</h2>
               <p className="text-sm text-muted-foreground">
-                prepara estructuras reutilizables.
+                crea ejercicios reutilizables.
               </p>
             </div>
           </div>
