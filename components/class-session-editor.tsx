@@ -43,6 +43,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useAddExerciseToClassSessionSection,
+  useCreateClassSessionSection,
+  useDeleteClassSessionSection,
+  useDeleteClassSessionSectionExercise,
+  useReorderClassSessionSectionExercises,
+  useReorderClassSessionSections,
+  useUpdateClassSessionSection,
+  useUpdateClassSessionSectionExercise,
+} from "@/hooks/use-class-sessions";
 import { useExercises } from "@/hooks/use-exercises";
 import type {
   Exercise,
@@ -53,6 +63,8 @@ import type {
 } from "@/lib/api/exercises";
 import type {
   ClassSession,
+  ClassSessionSection,
+  ClassSessionSectionExercise,
   ClassSessionStatusCode,
   UpdateClassSessionInput,
 } from "@/lib/api/class-sessions";
@@ -98,31 +110,6 @@ const defaultSectionNames = [
   "Vuelta a la calma",
 ];
 
-interface ClassPlanExercise {
-  id: string;
-  libraryExerciseId?: string;
-  name: string;
-  description: string;
-  durationMinutes: string;
-  reps: string;
-  restSec: string;
-  notes: string;
-  source: "library" | "manual";
-}
-
-interface ClassPlanSection {
-  id: string;
-  name: string;
-  goal: string;
-  durationMinutes: string;
-  notes: string;
-  exercises: ClassPlanExercise[];
-}
-
-interface ClassPlan {
-  sections: ClassPlanSection[];
-}
-
 interface ClassEditorForm {
   title: string;
   startsAt: string;
@@ -132,7 +119,14 @@ interface ClassEditorForm {
   notes: string;
 }
 
-interface ManualExerciseForm {
+interface SectionDraft {
+  name: string;
+  goal: string;
+  durationMinutes: string;
+  notes: string;
+}
+
+interface ExerciseDraft {
   name: string;
   description: string;
   durationMinutes: string;
@@ -141,46 +135,16 @@ interface ManualExerciseForm {
   notes: string;
 }
 
-function createId(prefix: string) {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
+interface ManualExerciseForm extends ExerciseDraft {}
 
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function createDefaultPlan(): ClassPlan {
-  return {
-    sections: defaultSectionNames.map((name) => ({
-      id: createId("section"),
-      name,
-      goal: "",
-      durationMinutes: "",
-      notes: "",
-      exercises: [],
-    })),
-  };
-}
-
-function getPlanStorageKey(classSessionId: string) {
-  return `boxplanner:class-plan:${classSessionId}`;
-}
-
-function safeParsePlan(value: string | null): ClassPlan | null {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(value) as Partial<ClassPlan>;
-
-    return Array.isArray(parsed.sections)
-      ? { sections: parsed.sections as ClassPlanSection[] }
-      : null;
-  } catch {
-    return null;
-  }
-}
+const emptyManualExercise: ManualExerciseForm = {
+  name: "",
+  description: "",
+  durationMinutes: "",
+  reps: "",
+  restSec: "",
+  notes: "",
+};
 
 function toDateTimeInputValue(value?: string | Date | null) {
   if (!value) {
@@ -224,6 +188,30 @@ function addMinutesToIsoDateTime(value: string, minutes: string) {
   return new Date(date.getTime() + durationMinutes * 60000).toISOString();
 }
 
+function optionalNumber(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const numberValue = Number.parseInt(trimmed, 10);
+
+  return Number.isFinite(numberValue) && numberValue >= 0
+    ? numberValue
+    : undefined;
+}
+
+function minutesToSeconds(value: string) {
+  const minutes = optionalNumber(value);
+
+  return minutes === undefined ? undefined : minutes * 60;
+}
+
+function secondsToMinutes(value?: number | null) {
+  return value ? String(Math.round(value / 60)) : "";
+}
+
 function normalizeStatus(status?: string | null): ClassSessionStatusCode {
   const normalized = String(status ?? "SCHEDULED").toUpperCase();
 
@@ -252,59 +240,6 @@ function getExerciseDescription(exercise: Exercise) {
   );
 }
 
-function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
-  const nextIndex = index + direction;
-
-  if (nextIndex < 0 || nextIndex >= items.length) {
-    return items;
-  }
-
-  const nextItems = [...items];
-  const current = nextItems[index];
-  nextItems[index] = nextItems[nextIndex];
-  nextItems[nextIndex] = current;
-
-  return nextItems;
-}
-
-const emptyManualExercise: ManualExerciseForm = {
-  name: "",
-  description: "",
-  durationMinutes: "",
-  reps: "",
-  restSec: "",
-  notes: "",
-};
-
-function createExerciseFromLibrary(exercise: Exercise): ClassPlanExercise {
-  return {
-    id: createId("exercise"),
-    libraryExerciseId: exercise.id,
-    name: exercise.name,
-    description: getExerciseDescription(exercise),
-    durationMinutes: exercise.averageDurationMinutes
-      ? String(exercise.averageDurationMinutes)
-      : "",
-    reps: "",
-    restSec: "0",
-    notes: exercise.coachNotes ?? "",
-    source: "library",
-  };
-}
-
-function createExerciseFromManual(form: ManualExerciseForm): ClassPlanExercise {
-  return {
-    id: createId("exercise"),
-    name: form.name.trim(),
-    description: form.description.trim(),
-    durationMinutes: form.durationMinutes.trim(),
-    reps: form.reps.trim(),
-    restSec: form.restSec.trim(),
-    notes: form.notes.trim(),
-    source: "manual",
-  };
-}
-
 function formatClassDate(value: string | Date) {
   const date = value instanceof Date ? value : new Date(value);
 
@@ -321,14 +256,79 @@ function formatClassDate(value: string | Date) {
   }).format(date);
 }
 
-function summarizeExercise(exercise: ClassPlanExercise) {
+function sectionToDraft(section: ClassSessionSection): SectionDraft {
+  return {
+    name: section.name,
+    goal: section.goal ?? "",
+    durationMinutes:
+      section.durationMinutes !== undefined && section.durationMinutes !== null
+        ? String(section.durationMinutes)
+        : secondsToMinutes(section.durationSec),
+    notes: section.notes ?? "",
+  };
+}
+
+function exerciseToDraft(exercise: ClassSessionSectionExercise): ExerciseDraft {
+  return {
+    name: exercise.name,
+    description: exercise.description ?? "",
+    durationMinutes: secondsToMinutes(exercise.durationSec),
+    reps: exercise.reps ? String(exercise.reps) : "",
+    restSec:
+      exercise.restSec !== undefined && exercise.restSec !== null
+        ? String(exercise.restSec)
+        : "",
+    notes: exercise.notes ?? "",
+  };
+}
+
+function summarizeExercise(exercise: ClassSessionSectionExercise) {
   const parts = [
-    exercise.durationMinutes ? `${exercise.durationMinutes} min` : null,
+    exercise.durationSec
+      ? `${Math.round(exercise.durationSec / 60)} min`
+      : null,
     exercise.reps ? `${exercise.reps} reps` : null,
     exercise.restSec ? `${exercise.restSec}s descanso` : null,
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(" · ") : "sin tiempos";
+}
+
+function getExerciseSourceId(exercise: ClassSessionSectionExercise) {
+  return exercise.exerciseId ?? exercise.libraryExerciseId ?? undefined;
+}
+
+function getSectionError(error: unknown) {
+  return error instanceof Error ? error.message : null;
+}
+
+function buildSectionOrder(sections: ClassSessionSection[]) {
+  return sections.map((section, orderIndex) => ({
+    sectionId: section.id,
+    orderIndex,
+  }));
+}
+
+function buildExerciseOrder(exercises: ClassSessionSectionExercise[]) {
+  return exercises.map((exercise, orderIndex) => ({
+    exerciseId: exercise.id,
+    orderIndex,
+  }));
+}
+
+function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
+  const nextIndex = index + direction;
+
+  if (nextIndex < 0 || nextIndex >= items.length) {
+    return items;
+  }
+
+  const nextItems = [...items];
+  const current = nextItems[index];
+  nextItems[index] = nextItems[nextIndex];
+  nextItems[nextIndex] = current;
+
+  return nextItems;
 }
 
 export function ClassSessionEditor({
@@ -351,6 +351,19 @@ export function ClassSessionEditor({
     input: UpdateClassSessionInput,
   ) => Promise<void>;
 }) {
+  const createSection = useCreateClassSessionSection(organizationId);
+  const updateSection = useUpdateClassSessionSection(organizationId);
+  const deleteSection = useDeleteClassSessionSection(organizationId);
+  const reorderSections = useReorderClassSessionSections(organizationId);
+  const addSectionExercise =
+    useAddExerciseToClassSessionSection(organizationId);
+  const updateSectionExercise =
+    useUpdateClassSessionSectionExercise(organizationId);
+  const deleteSectionExercise =
+    useDeleteClassSessionSectionExercise(organizationId);
+  const reorderSectionExercises =
+    useReorderClassSessionSectionExercises(organizationId);
+
   const [classForm, setClassForm] = useState<ClassEditorForm>({
     title: "",
     startsAt: "",
@@ -359,14 +372,17 @@ export function ClassSessionEditor({
     status: "SCHEDULED",
     notes: "",
   });
-  const [plan, setPlan] = useState<ClassPlan>(createDefaultPlan);
+  const [sectionDrafts, setSectionDrafts] = useState<
+    Record<string, SectionDraft>
+  >({});
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
     null,
   );
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<{
     sectionId: string;
-    exercise: ClassPlanExercise;
+    exerciseId: string;
+    draft: ExerciseDraft;
   } | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryCategory, setLibraryCategory] = useState(ALL_VALUE);
@@ -402,7 +418,8 @@ export function ClassSessionEditor({
     ],
   );
   const libraryQuery = useExercises(organizationId, libraryFilters);
-  const selectedSection = plan.sections.find(
+  const sections = session?.sections ?? [];
+  const selectedSection = sections.find(
     (section) => section.id === selectedSectionId,
   );
   const hasLibraryFilters =
@@ -410,6 +427,24 @@ export function ClassSessionEditor({
     libraryLevel !== ALL_VALUE ||
     libraryIntensity !== ALL_VALUE ||
     librarySource !== ALL_VALUE;
+  const isMutatingStructure =
+    createSection.isPending ||
+    updateSection.isPending ||
+    deleteSection.isPending ||
+    reorderSections.isPending ||
+    addSectionExercise.isPending ||
+    updateSectionExercise.isPending ||
+    deleteSectionExercise.isPending ||
+    reorderSectionExercises.isPending;
+  const mutationError =
+    createSection.error ??
+    updateSection.error ??
+    deleteSection.error ??
+    reorderSections.error ??
+    addSectionExercise.error ??
+    updateSectionExercise.error ??
+    deleteSectionExercise.error ??
+    reorderSectionExercises.error;
 
   useEffect(() => {
     if (!session || !open) {
@@ -424,113 +459,30 @@ export function ClassSessionEditor({
       status: normalizeStatus(session.status),
       notes: session.notes ?? "",
     });
+    setSectionDrafts(
+      Object.fromEntries(
+        (session.sections ?? []).map((section) => [
+          section.id,
+          sectionToDraft(section),
+        ]),
+      ),
+    );
+    setSelectedSectionId((currentSectionId) => {
+      if (
+        currentSectionId &&
+        session.sections?.some((section) => section.id === currentSectionId)
+      ) {
+        return currentSectionId;
+      }
 
-    const storedPlan =
-      typeof window !== "undefined"
-        ? safeParsePlan(
-            window.localStorage.getItem(getPlanStorageKey(session.id)),
-          )
-        : null;
-    const nextPlan = storedPlan ?? createDefaultPlan();
-    setPlan(nextPlan);
-    setSelectedSectionId(nextPlan.sections[0]?.id ?? null);
+      return session.sections?.[0]?.id ?? null;
+    });
     setFormError(null);
   }, [open, session]);
 
   if (!session) {
     return null;
   }
-
-  const updatePlan = (updater: (currentPlan: ClassPlan) => ClassPlan) => {
-    setPlan((currentPlan) => updater(currentPlan));
-  };
-
-  const updateSection = (
-    sectionId: string,
-    input: Partial<Omit<ClassPlanSection, "id" | "exercises">>,
-  ) => {
-    updatePlan((currentPlan) => ({
-      sections: currentPlan.sections.map((section) =>
-        section.id === sectionId ? { ...section, ...input } : section,
-      ),
-    }));
-  };
-
-  const addSection = () => {
-    const section: ClassPlanSection = {
-      id: createId("section"),
-      name: "Nueva seccion",
-      goal: "",
-      durationMinutes: "",
-      notes: "",
-      exercises: [],
-    };
-
-    updatePlan((currentPlan) => ({
-      sections: [...currentPlan.sections, section],
-    }));
-    setSelectedSectionId(section.id);
-  };
-
-  const removeSection = (sectionId: string) => {
-    updatePlan((currentPlan) => {
-      const sections = currentPlan.sections.filter(
-        (section) => section.id !== sectionId,
-      );
-      setSelectedSectionId(sections[0]?.id ?? null);
-
-      return { sections };
-    });
-  };
-
-  const addExerciseToSection = (
-    sectionId: string,
-    exercise: ClassPlanExercise,
-  ) => {
-    updatePlan((currentPlan) => ({
-      sections: currentPlan.sections.map((section) =>
-        section.id === sectionId
-          ? { ...section, exercises: [...section.exercises, exercise] }
-          : section,
-      ),
-    }));
-  };
-
-  const updateExercise = (
-    sectionId: string,
-    exerciseId: string,
-    input: Partial<ClassPlanExercise>,
-  ) => {
-    updatePlan((currentPlan) => ({
-      sections: currentPlan.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              exercises: section.exercises.map((exercise) =>
-                exercise.id === exerciseId
-                  ? { ...exercise, ...input }
-                  : exercise,
-              ),
-            }
-          : section,
-      ),
-    }));
-  };
-
-  const removeExercise = (sectionId: string, exerciseId: string) => {
-    updatePlan((currentPlan) => ({
-      sections: currentPlan.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              exercises: section.exercises.filter(
-                (exercise) => exercise.id !== exerciseId,
-              ),
-            }
-          : section,
-      ),
-    }));
-  };
 
   const saveClass = async () => {
     setFormError(null);
@@ -571,13 +523,87 @@ export function ClassSessionEditor({
 
     try {
       await savePromise;
-      window.localStorage.setItem(
-        getPlanStorageKey(session.id),
-        JSON.stringify(plan),
-      );
     } catch {
       // react-query keeps the mutation error for the inline state
     }
+  };
+
+  const handleCreateSection = async (name = "Nueva seccion") => {
+    const createPromise = createSection.mutateAsync({
+      classSessionId: session.id,
+      input: {
+        name,
+        orderIndex: sections.length,
+      },
+    });
+
+    toast.promise(createPromise, {
+      loading: "creando seccion...",
+      success: "seccion creada",
+      error: "no se pudo crear la seccion",
+    });
+
+    try {
+      const section = await createPromise;
+      setSelectedSectionId(section.id);
+    } catch {
+      // handled by toast and inline mutation error
+    }
+  };
+
+  const handleSaveSection = async (section: ClassSessionSection) => {
+    const draft = sectionDrafts[section.id] ?? sectionToDraft(section);
+
+    if (!draft.name.trim()) {
+      setFormError("La seccion necesita nombre.");
+      return;
+    }
+
+    const updatePromise = updateSection.mutateAsync({
+      sectionId: section.id,
+      input: {
+        name: draft.name.trim(),
+        goal: draft.goal.trim() || null,
+        notes: draft.notes.trim() || null,
+        durationMinutes: optionalNumber(draft.durationMinutes) ?? null,
+      },
+    });
+
+    toast.promise(updatePromise, {
+      loading: "guardando seccion...",
+      success: "seccion guardada",
+      error: "no se pudo guardar la seccion",
+    });
+
+    await updatePromise.catch(() => undefined);
+  };
+
+  const handleDeleteSection = async (sectionId: string) => {
+    const deletePromise = deleteSection.mutateAsync(sectionId);
+
+    toast.promise(deletePromise, {
+      loading: "borrando seccion...",
+      success: "seccion borrada",
+      error: "no se pudo borrar la seccion",
+    });
+
+    await deletePromise.catch(() => undefined);
+  };
+
+  const handleMoveSection = async (sectionIndex: number, direction: -1 | 1) => {
+    const nextSections = moveItem(sections, sectionIndex, direction);
+    const reorderPromise = reorderSections.mutateAsync({
+      classSessionId: session.id,
+      input: { order: buildSectionOrder(nextSections) },
+    });
+
+    toast.promise(reorderPromise, {
+      loading: "reordenando secciones...",
+      success: "secciones reordenadas",
+      error: "no se pudo reordenar",
+    });
+
+    await reorderPromise.catch(() => undefined);
   };
 
   const openLibraryForSection = (sectionId: string) => {
@@ -586,7 +612,39 @@ export function ClassSessionEditor({
     setIsLibraryOpen(true);
   };
 
-  const handleManualAdd = () => {
+  const handleAddLibraryExercise = async (exercise: Exercise) => {
+    if (!selectedSectionId) {
+      return;
+    }
+
+    const selected = sections.find(
+      (section) => section.id === selectedSectionId,
+    );
+    const addPromise = addSectionExercise.mutateAsync({
+      sectionId: selectedSectionId,
+      input: {
+        exerciseId: exercise.id,
+        name: exercise.name,
+        description: getExerciseDescription(exercise) || undefined,
+        durationSec: exercise.averageDurationMinutes
+          ? exercise.averageDurationMinutes * 60
+          : undefined,
+        notes: exercise.coachNotes ?? undefined,
+        restSec: 0,
+        orderIndex: selected?.exercises?.length ?? 0,
+      },
+    });
+
+    toast.promise(addPromise, {
+      loading: "anadiendo ejercicio...",
+      success: "ejercicio anadido",
+      error: "no se pudo anadir el ejercicio",
+    });
+
+    await addPromise.catch(() => undefined);
+  };
+
+  const handleManualAdd = async () => {
     if (!selectedSectionId) {
       return;
     }
@@ -596,11 +654,104 @@ export function ClassSessionEditor({
       return;
     }
 
-    addExerciseToSection(
-      selectedSectionId,
-      createExerciseFromManual(manualExercise),
+    const selected = sections.find(
+      (section) => section.id === selectedSectionId,
     );
-    setManualExercise(emptyManualExercise);
+    const addPromise = addSectionExercise.mutateAsync({
+      sectionId: selectedSectionId,
+      input: {
+        name: manualExercise.name.trim(),
+        description: manualExercise.description.trim() || undefined,
+        durationSec: minutesToSeconds(manualExercise.durationMinutes),
+        reps: optionalNumber(manualExercise.reps),
+        restSec: optionalNumber(manualExercise.restSec),
+        notes: manualExercise.notes.trim() || undefined,
+        orderIndex: selected?.exercises?.length ?? 0,
+      },
+    });
+
+    toast.promise(addPromise, {
+      loading: "anadiendo ejercicio manual...",
+      success: "ejercicio anadido",
+      error: "no se pudo anadir el ejercicio",
+    });
+
+    try {
+      await addPromise;
+      setManualExercise(emptyManualExercise);
+    } catch {
+      // handled by toast and inline mutation error
+    }
+  };
+
+  const handleSaveExercise = async () => {
+    if (!editingExercise) {
+      return;
+    }
+
+    if (!editingExercise.draft.name.trim()) {
+      setFormError("El ejercicio necesita nombre.");
+      return;
+    }
+
+    const updatePromise = updateSectionExercise.mutateAsync({
+      exerciseId: editingExercise.exerciseId,
+      input: {
+        name: editingExercise.draft.name.trim(),
+        description: editingExercise.draft.description.trim() || null,
+        durationSec:
+          minutesToSeconds(editingExercise.draft.durationMinutes) ?? null,
+        reps: optionalNumber(editingExercise.draft.reps) ?? null,
+        restSec: optionalNumber(editingExercise.draft.restSec) ?? null,
+        notes: editingExercise.draft.notes.trim() || null,
+      },
+    });
+
+    toast.promise(updatePromise, {
+      loading: "guardando ejercicio...",
+      success: "ejercicio guardado",
+      error: "no se pudo guardar el ejercicio",
+    });
+
+    try {
+      await updatePromise;
+      setEditingExercise(null);
+    } catch {
+      // handled by toast and inline mutation error
+    }
+  };
+
+  const handleDeleteExercise = async (exerciseId: string) => {
+    const deletePromise = deleteSectionExercise.mutateAsync(exerciseId);
+
+    toast.promise(deletePromise, {
+      loading: "quitando ejercicio...",
+      success: "ejercicio quitado",
+      error: "no se pudo quitar el ejercicio",
+    });
+
+    await deletePromise.catch(() => undefined);
+  };
+
+  const handleMoveExercise = async (
+    section: ClassSessionSection,
+    exerciseIndex: number,
+    direction: -1 | 1,
+  ) => {
+    const exercises = section.exercises ?? [];
+    const nextExercises = moveItem(exercises, exerciseIndex, direction);
+    const reorderPromise = reorderSectionExercises.mutateAsync({
+      sectionId: section.id,
+      input: { order: buildExerciseOrder(nextExercises) },
+    });
+
+    toast.promise(reorderPromise, {
+      loading: "reordenando ejercicios...",
+      success: "ejercicios reordenados",
+      error: "no se pudo reordenar",
+    });
+
+    await reorderPromise.catch(() => undefined);
   };
 
   return (
@@ -722,9 +873,11 @@ export function ClassSessionEditor({
                 </div>
               </div>
 
-              {(formError || saveError) && (
+              {(formError || saveError || mutationError) && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {formError ?? saveError?.message}
+                  {formError ??
+                    saveError?.message ??
+                    getSectionError(mutationError)}
                 </p>
               )}
 
@@ -750,279 +903,318 @@ export function ClassSessionEditor({
                     cada seccion acepta cualquier ejercicio de la biblioteca.
                   </p>
                 </div>
-                <Button type="button" onClick={addSection}>
+                <Button
+                  type="button"
+                  disabled={isMutatingStructure}
+                  onClick={() => void handleCreateSection()}
+                >
                   <Plus className="h-4 w-4" />
                   anadir seccion
                 </Button>
               </div>
 
-              <div className="space-y-3">
-                {plan.sections.map((section, sectionIndex) => (
-                  <article
-                    key={section.id}
-                    className="space-y-4 rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-sm font-semibold text-primary">
-                        {sectionIndex + 1}
-                      </span>
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
-                          <div className="space-y-2">
-                            <Label htmlFor={`section-name-${section.id}`}>
-                              nombre
-                            </Label>
-                            <Input
-                              id={`section-name-${section.id}`}
-                              value={section.name}
-                              onChange={(event) =>
-                                updateSection(section.id, {
-                                  name: event.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`section-duration-${section.id}`}>
-                              duracion min.
-                            </Label>
-                            <Input
-                              id={`section-duration-${section.id}`}
-                              type="number"
-                              min="0"
-                              value={section.durationMinutes}
-                              onChange={(event) =>
-                                updateSection(section.id, {
-                                  durationMinutes: event.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor={`section-goal-${section.id}`}>
-                              objetivo
-                            </Label>
-                            <Input
-                              id={`section-goal-${section.id}`}
-                              value={section.goal}
-                              onChange={(event) =>
-                                updateSection(section.id, {
-                                  goal: event.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`section-notes-${section.id}`}>
-                              notas
-                            </Label>
-                            <Input
-                              id={`section-notes-${section.id}`}
-                              value={section.notes}
-                              onChange={(event) =>
-                                updateSection(section.id, {
-                                  notes: event.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
+              {sections.length === 0 ? (
+                <div className="space-y-3 rounded-lg border border-dashed border-border/70 bg-card/45 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    crea una seccion personalizada o usa una de las habituales.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {defaultSectionNames.map((sectionName) => (
                       <Button
+                        key={sectionName}
                         type="button"
                         variant="outline"
                         className="bg-transparent"
-                        disabled={sectionIndex === 0}
-                        onClick={() =>
-                          updatePlan((currentPlan) => ({
-                            sections: moveItem(
-                              currentPlan.sections,
-                              sectionIndex,
-                              -1,
-                            ),
-                          }))
-                        }
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                        subir
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-transparent"
-                        disabled={sectionIndex === plan.sections.length - 1}
-                        onClick={() =>
-                          updatePlan((currentPlan) => ({
-                            sections: moveItem(
-                              currentPlan.sections,
-                              sectionIndex,
-                              1,
-                            ),
-                          }))
-                        }
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                        bajar
-                      </Button>
-                      <Button
-                        type="button"
-                        className="flex-1 sm:flex-none"
-                        onClick={() => openLibraryForSection(section.id)}
+                        disabled={createSection.isPending}
+                        onClick={() => void handleCreateSection(sectionName)}
                       >
                         <Plus className="h-4 w-4" />
-                        anadir ejercicio
+                        {sectionName}
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-transparent text-destructive hover:text-destructive"
-                        onClick={() => removeSection(section.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        borrar
-                      </Button>
-                    </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
-                    <div className="space-y-2">
-                      {section.exercises.map((exercise, exerciseIndex) => (
-                        <div
-                          key={exercise.id}
-                          className="rounded-md border border-border/70 bg-background/45 p-3"
-                        >
-                          <div className="flex items-start gap-3">
-                            <GripVertical className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="font-medium text-foreground">
-                                  {exercise.name}
-                                </h4>
-                                {exercise.source === "library" ? (
-                                  <Badge variant="outline">
-                                    <Library className="h-3 w-3" />
-                                    biblioteca
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="secondary">manual</Badge>
-                                )}
-                              </div>
-                              {exercise.description ? (
-                                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                  {exercise.description}
-                                </p>
-                              ) : null}
-                              <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3.5 w-3.5" />
-                                  {summarizeExercise(exercise)}
-                                </span>
-                                {exercise.notes ? (
-                                  <span className="flex items-center gap-1">
-                                    <FileText className="h-3.5 w-3.5" />
-                                    {exercise.notes}
-                                  </span>
-                                ) : null}
-                              </div>
+              <div className="space-y-3">
+                {sections.map((section, sectionIndex) => {
+                  const draft =
+                    sectionDrafts[section.id] ?? sectionToDraft(section);
+                  const exercises = section.exercises ?? [];
+
+                  return (
+                    <article
+                      key={section.id}
+                      className="space-y-4 rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-sm font-semibold text-primary">
+                          {sectionIndex + 1}
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
+                            <div className="space-y-2">
+                              <Label htmlFor={`section-name-${section.id}`}>
+                                nombre
+                              </Label>
+                              <Input
+                                id={`section-name-${section.id}`}
+                                value={draft.name}
+                                onChange={(event) =>
+                                  setSectionDrafts((currentDrafts) => ({
+                                    ...currentDrafts,
+                                    [section.id]: {
+                                      ...draft,
+                                      name: event.target.value,
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`section-duration-${section.id}`}>
+                                duracion min.
+                              </Label>
+                              <Input
+                                id={`section-duration-${section.id}`}
+                                type="number"
+                                min="0"
+                                value={draft.durationMinutes}
+                                onChange={(event) =>
+                                  setSectionDrafts((currentDrafts) => ({
+                                    ...currentDrafts,
+                                    [section.id]: {
+                                      ...draft,
+                                      durationMinutes: event.target.value,
+                                    },
+                                  }))
+                                }
+                              />
                             </div>
                           </div>
 
-                          <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="bg-transparent"
-                              disabled={exerciseIndex === 0}
-                              onClick={() =>
-                                updatePlan((currentPlan) => ({
-                                  sections: currentPlan.sections.map(
-                                    (currentSection) =>
-                                      currentSection.id === section.id
-                                        ? {
-                                            ...currentSection,
-                                            exercises: moveItem(
-                                              currentSection.exercises,
-                                              exerciseIndex,
-                                              -1,
-                                            ),
-                                          }
-                                        : currentSection,
-                                  ),
-                                }))
-                              }
-                            >
-                              <ArrowUp className="h-4 w-4" />
-                              subir
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="bg-transparent"
-                              disabled={
-                                exerciseIndex === section.exercises.length - 1
-                              }
-                              onClick={() =>
-                                updatePlan((currentPlan) => ({
-                                  sections: currentPlan.sections.map(
-                                    (currentSection) =>
-                                      currentSection.id === section.id
-                                        ? {
-                                            ...currentSection,
-                                            exercises: moveItem(
-                                              currentSection.exercises,
-                                              exerciseIndex,
-                                              1,
-                                            ),
-                                          }
-                                        : currentSection,
-                                  ),
-                                }))
-                              }
-                            >
-                              <ArrowDown className="h-4 w-4" />
-                              bajar
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="bg-transparent"
-                              onClick={() =>
-                                setEditingExercise({
-                                  sectionId: section.id,
-                                  exercise,
-                                })
-                              }
-                            >
-                              <Pencil className="h-4 w-4" />
-                              editar
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="bg-transparent text-destructive hover:text-destructive"
-                              onClick={() =>
-                                removeExercise(section.id, exercise.id)
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              quitar
-                            </Button>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor={`section-goal-${section.id}`}>
+                                objetivo
+                              </Label>
+                              <Input
+                                id={`section-goal-${section.id}`}
+                                value={draft.goal}
+                                onChange={(event) =>
+                                  setSectionDrafts((currentDrafts) => ({
+                                    ...currentDrafts,
+                                    [section.id]: {
+                                      ...draft,
+                                      goal: event.target.value,
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`section-notes-${section.id}`}>
+                                notas
+                              </Label>
+                              <Input
+                                id={`section-notes-${section.id}`}
+                                value={draft.notes}
+                                onChange={(event) =>
+                                  setSectionDrafts((currentDrafts) => ({
+                                    ...currentDrafts,
+                                    [section.id]: {
+                                      ...draft,
+                                      notes: event.target.value,
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
                           </div>
                         </div>
-                      ))}
+                      </div>
 
-                      {section.exercises.length === 0 ? (
-                        <div className="rounded-md border border-dashed border-border/70 bg-background/30 px-3 py-4 text-sm text-muted-foreground">
-                          sin ejercicios todavia
-                        </div>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-transparent"
+                          disabled={
+                            sectionIndex === 0 || reorderSections.isPending
+                          }
+                          onClick={() =>
+                            void handleMoveSection(sectionIndex, -1)
+                          }
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                          subir
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-transparent"
+                          disabled={
+                            sectionIndex === sections.length - 1 ||
+                            reorderSections.isPending
+                          }
+                          onClick={() =>
+                            void handleMoveSection(sectionIndex, 1)
+                          }
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                          bajar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-transparent"
+                          disabled={updateSection.isPending}
+                          onClick={() => void handleSaveSection(section)}
+                        >
+                          <Save className="h-4 w-4" />
+                          guardar seccion
+                        </Button>
+                        <Button
+                          type="button"
+                          className="flex-1 sm:flex-none"
+                          onClick={() => openLibraryForSection(section.id)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          anadir ejercicio
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-transparent text-destructive hover:text-destructive"
+                          disabled={deleteSection.isPending}
+                          onClick={() => void handleDeleteSection(section.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          borrar
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {exercises.map((exercise, exerciseIndex) => (
+                          <div
+                            key={exercise.id}
+                            className="rounded-md border border-border/70 bg-background/45 p-3"
+                          >
+                            <div className="flex items-start gap-3">
+                              <GripVertical className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="font-medium text-foreground">
+                                    {exercise.name}
+                                  </h4>
+                                  {getExerciseSourceId(exercise) ? (
+                                    <Badge variant="outline">
+                                      <Library className="h-3 w-3" />
+                                      biblioteca
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary">manual</Badge>
+                                  )}
+                                </div>
+                                {exercise.description ? (
+                                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                    {exercise.description}
+                                  </p>
+                                ) : null}
+                                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    {summarizeExercise(exercise)}
+                                  </span>
+                                  {exercise.notes ? (
+                                    <span className="flex items-center gap-1">
+                                      <FileText className="h-3.5 w-3.5" />
+                                      {exercise.notes}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="bg-transparent"
+                                disabled={
+                                  exerciseIndex === 0 ||
+                                  reorderSectionExercises.isPending
+                                }
+                                onClick={() =>
+                                  void handleMoveExercise(
+                                    section,
+                                    exerciseIndex,
+                                    -1,
+                                  )
+                                }
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                                subir
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="bg-transparent"
+                                disabled={
+                                  exerciseIndex === exercises.length - 1 ||
+                                  reorderSectionExercises.isPending
+                                }
+                                onClick={() =>
+                                  void handleMoveExercise(
+                                    section,
+                                    exerciseIndex,
+                                    1,
+                                  )
+                                }
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                                bajar
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="bg-transparent"
+                                onClick={() =>
+                                  setEditingExercise({
+                                    sectionId: section.id,
+                                    exerciseId: exercise.id,
+                                    draft: exerciseToDraft(exercise),
+                                  })
+                                }
+                              >
+                                <Pencil className="h-4 w-4" />
+                                editar
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="bg-transparent text-destructive hover:text-destructive"
+                                disabled={deleteSectionExercise.isPending}
+                                onClick={() =>
+                                  void handleDeleteExercise(exercise.id)
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                quitar
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {exercises.length === 0 ? (
+                          <div className="rounded-md border border-dashed border-border/70 bg-background/30 px-3 py-4 text-sm text-muted-foreground">
+                            sin ejercicios todavia
+                          </div>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </section>
           </div>
@@ -1219,17 +1411,12 @@ export function ClassSessionEditor({
                         <Button
                           type="button"
                           className="w-full sm:w-auto"
-                          disabled={!selectedSectionId}
-                          onClick={() => {
-                            if (!selectedSectionId) {
-                              return;
-                            }
-
-                            addExerciseToSection(
-                              selectedSectionId,
-                              createExerciseFromLibrary(exercise),
-                            );
-                          }}
+                          disabled={
+                            !selectedSectionId || addSectionExercise.isPending
+                          }
+                          onClick={() =>
+                            void handleAddLibraryExercise(exercise)
+                          }
                         >
                           <Plus className="h-4 w-4" />
                           anadir
@@ -1356,8 +1543,8 @@ export function ClassSessionEditor({
                 type="button"
                 size="lg"
                 className="w-full"
-                disabled={!selectedSectionId}
-                onClick={handleManualAdd}
+                disabled={!selectedSectionId || addSectionExercise.isPending}
+                onClick={() => void handleManualAdd()}
               >
                 <Plus className="h-4 w-4" />
                 anadir manual
@@ -1389,12 +1576,12 @@ export function ClassSessionEditor({
                 <Label htmlFor="edit-plan-exercise-name">nombre</Label>
                 <Input
                   id="edit-plan-exercise-name"
-                  value={editingExercise.exercise.name}
+                  value={editingExercise.draft.name}
                   onChange={(event) =>
                     setEditingExercise({
                       ...editingExercise,
-                      exercise: {
-                        ...editingExercise.exercise,
+                      draft: {
+                        ...editingExercise.draft,
                         name: event.target.value,
                       },
                     })
@@ -1408,12 +1595,12 @@ export function ClassSessionEditor({
                 <Textarea
                   id="edit-plan-exercise-description"
                   rows={4}
-                  value={editingExercise.exercise.description}
+                  value={editingExercise.draft.description}
                   onChange={(event) =>
                     setEditingExercise({
                       ...editingExercise,
-                      exercise: {
-                        ...editingExercise.exercise,
+                      draft: {
+                        ...editingExercise.draft,
                         description: event.target.value,
                       },
                     })
@@ -1427,12 +1614,12 @@ export function ClassSessionEditor({
                     id="edit-plan-exercise-duration"
                     type="number"
                     min="0"
-                    value={editingExercise.exercise.durationMinutes}
+                    value={editingExercise.draft.durationMinutes}
                     onChange={(event) =>
                       setEditingExercise({
                         ...editingExercise,
-                        exercise: {
-                          ...editingExercise.exercise,
+                        draft: {
+                          ...editingExercise.draft,
                           durationMinutes: event.target.value,
                         },
                       })
@@ -1445,12 +1632,12 @@ export function ClassSessionEditor({
                     id="edit-plan-exercise-reps"
                     type="number"
                     min="0"
-                    value={editingExercise.exercise.reps}
+                    value={editingExercise.draft.reps}
                     onChange={(event) =>
                       setEditingExercise({
                         ...editingExercise,
-                        exercise: {
-                          ...editingExercise.exercise,
+                        draft: {
+                          ...editingExercise.draft,
                           reps: event.target.value,
                         },
                       })
@@ -1463,12 +1650,12 @@ export function ClassSessionEditor({
                     id="edit-plan-exercise-rest"
                     type="number"
                     min="0"
-                    value={editingExercise.exercise.restSec}
+                    value={editingExercise.draft.restSec}
                     onChange={(event) =>
                       setEditingExercise({
                         ...editingExercise,
-                        exercise: {
-                          ...editingExercise.exercise,
+                        draft: {
+                          ...editingExercise.draft,
                           restSec: event.target.value,
                         },
                       })
@@ -1481,12 +1668,12 @@ export function ClassSessionEditor({
                 <Textarea
                   id="edit-plan-exercise-notes"
                   rows={4}
-                  value={editingExercise.exercise.notes}
+                  value={editingExercise.draft.notes}
                   onChange={(event) =>
                     setEditingExercise({
                       ...editingExercise,
-                      exercise: {
-                        ...editingExercise.exercise,
+                      draft: {
+                        ...editingExercise.draft,
                         notes: event.target.value,
                       },
                     })
@@ -1497,14 +1684,8 @@ export function ClassSessionEditor({
                 type="button"
                 size="lg"
                 className="w-full"
-                onClick={() => {
-                  updateExercise(
-                    editingExercise.sectionId,
-                    editingExercise.exercise.id,
-                    editingExercise.exercise,
-                  );
-                  setEditingExercise(null);
-                }}
+                disabled={updateSectionExercise.isPending}
+                onClick={() => void handleSaveExercise()}
               >
                 guardar ejercicio
               </Button>

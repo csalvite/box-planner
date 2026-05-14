@@ -2,19 +2,33 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  addExerciseToClassSessionSection,
   createClassSession,
+  createClassSessionSection,
   deleteClassSession,
+  deleteClassSessionSection,
+  deleteClassSessionSectionExercise,
   getClassSessions,
   markAttendance,
   removeAttendance,
+  reorderClassSessionSectionExercises,
+  reorderClassSessionSections,
   updateClassSession,
   updateClassSessionEnabled,
+  updateClassSessionSection,
+  updateClassSessionSectionExercise,
   updateClassSessionStatus,
+  type ClassSessionSectionExerciseInput,
+  type ClassSessionSectionInput,
   type ClassSessionAttendanceResult,
   type ClassSession,
   type ClassSessionFilters,
   type ClassSessionStatusCode,
   type CreateClassSessionInput,
+  type ReorderClassSessionSectionExercisesInput,
+  type ReorderClassSessionSectionsInput,
+  type UpdateClassSessionSectionExerciseInput,
+  type UpdateClassSessionSectionInput,
   type UpdateClassSessionInput,
 } from "@/lib/api/class-sessions";
 import {
@@ -47,7 +61,8 @@ export function useClassSessions(
 
   return useQuery({
     queryKey: classSessionsQueryKey(organizationId, filters),
-    queryFn: () => getClassSessions(organizationId as string, accessToken, filters),
+    queryFn: () =>
+      getClassSessions(organizationId as string, accessToken, filters),
     enabled: Boolean(accessToken && organizationId),
   });
 }
@@ -198,6 +213,145 @@ export function useDeleteClassSession(organizationId?: string | null) {
   });
 }
 
+async function refreshClassSessions(
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId?: string | null,
+) {
+  await queryClient.invalidateQueries({
+    queryKey: classSessionsBaseQueryKey(organizationId),
+  });
+  await queryClient.refetchQueries({
+    queryKey: classSessionsBaseQueryKey(organizationId),
+    type: "active",
+  });
+}
+
+export function useCreateClassSessionSection(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      classSessionId,
+      input,
+    }: {
+      classSessionId: string;
+      input: ClassSessionSectionInput;
+    }) => createClassSessionSection(classSessionId, input, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useUpdateClassSessionSection(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      sectionId,
+      input,
+    }: {
+      sectionId: string;
+      input: UpdateClassSessionSectionInput;
+    }) => updateClassSessionSection(sectionId, input, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useDeleteClassSessionSection(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (sectionId: string) =>
+      deleteClassSessionSection(sectionId, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useReorderClassSessionSections(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      classSessionId,
+      input,
+    }: {
+      classSessionId: string;
+      input: ReorderClassSessionSectionsInput;
+    }) => reorderClassSessionSections(classSessionId, input, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useAddExerciseToClassSessionSection(
+  organizationId?: string | null,
+) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      sectionId,
+      input,
+    }: {
+      sectionId: string;
+      input: ClassSessionSectionExerciseInput;
+    }) => addExerciseToClassSessionSection(sectionId, input, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useUpdateClassSessionSectionExercise(
+  organizationId?: string | null,
+) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      exerciseId,
+      input,
+    }: {
+      exerciseId: string;
+      input: UpdateClassSessionSectionExerciseInput;
+    }) => updateClassSessionSectionExercise(exerciseId, input, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useDeleteClassSessionSectionExercise(
+  organizationId?: string | null,
+) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (exerciseId: string) =>
+      deleteClassSessionSectionExercise(exerciseId, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
+export function useReorderClassSessionSectionExercises(
+  organizationId?: string | null,
+) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      sectionId,
+      input,
+    }: {
+      sectionId: string;
+      input: ReorderClassSessionSectionExercisesInput;
+    }) => reorderClassSessionSectionExercises(sectionId, input, accessToken),
+    onSuccess: async () => refreshClassSessions(queryClient, organizationId),
+  });
+}
+
 type AttendanceSessionShape = {
   id?: string;
   attendanceCount?: number | null;
@@ -225,7 +379,9 @@ function getAttendanceCount(session: AttendanceSessionShape) {
 
 function isAttending(session: AttendanceSessionShape) {
   return Boolean(
-    session.hasCurrentUserAttendance ?? session.isAttending ?? session.attending,
+    session.hasCurrentUserAttendance ??
+    session.isAttending ??
+    session.attending,
   );
 }
 
@@ -269,7 +425,11 @@ function applyAttendanceToSession<T extends AttendanceSessionShape>(
 
   return {
     ...updatedSession,
-    attendanceCount: resolveAttendanceCount(updatedSession, result, nextAttendance),
+    attendanceCount: resolveAttendanceCount(
+      updatedSession,
+      result,
+      nextAttendance,
+    ),
     hasCurrentUserAttendance: nextAttendance,
     isAttending: nextAttendance,
     attending: nextAttendance,

@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type { ApiTraining } from "@/lib/api/trainings";
+import type { Exercise } from "@/lib/api/exercises";
 
 export type ClassSessionStatus =
   | "SCHEDULED"
@@ -44,6 +45,39 @@ export interface ClassSession {
     attendances?: number;
     attendees?: number;
   };
+  sections?: ClassSessionSection[];
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
+export interface ClassSessionSection {
+  id: string;
+  classSessionId?: string;
+  name: string;
+  goal?: string | null;
+  notes?: string | null;
+  durationMinutes?: number | null;
+  durationSec?: number | null;
+  orderIndex: number;
+  exercises?: ClassSessionSectionExercise[];
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+}
+
+export interface ClassSessionSectionExercise {
+  id: string;
+  sectionId?: string;
+  classSessionSectionId?: string;
+  exerciseId?: string | null;
+  libraryExerciseId?: string | null;
+  libraryExercise?: Exercise | null;
+  name: string;
+  description?: string | null;
+  durationSec?: number | null;
+  reps?: number | null;
+  restSec?: number | null;
+  notes?: string | null;
+  orderIndex: number;
   createdAt?: string | Date | null;
   updatedAt?: string | Date | null;
 }
@@ -64,13 +98,57 @@ export type UpdateClassSessionInput = Partial<
   isEnabled?: boolean;
 };
 
+export interface ClassSessionSectionInput {
+  name: string;
+  goal?: string | null;
+  notes?: string | null;
+  durationMinutes?: number | null;
+  orderIndex?: number;
+}
+
+export type UpdateClassSessionSectionInput = Partial<ClassSessionSectionInput>;
+
+export interface ReorderClassSessionSectionsInput {
+  order: Array<{
+    sectionId: string;
+    orderIndex: number;
+  }>;
+}
+
+export interface ClassSessionSectionExerciseInput {
+  exerciseId?: string;
+  name?: string;
+  description?: string | null;
+  durationSec?: number | null;
+  reps?: number | null;
+  restSec?: number | null;
+  notes?: string | null;
+  orderIndex?: number;
+}
+
+export type UpdateClassSessionSectionExerciseInput =
+  Partial<ClassSessionSectionExerciseInput>;
+
+export interface ReorderClassSessionSectionExercisesInput {
+  order: Array<{
+    exerciseId: string;
+    orderIndex: number;
+  }>;
+}
+
 type ClassSessionsResponse =
   | ClassSession[]
   | {
       classSessions?: ClassSession[];
       classes?: ClassSession[];
       sessions?: ClassSession[];
-      data?: ClassSession[];
+      data?:
+        | ClassSession[]
+        | {
+            classSessions?: ClassSession[];
+            classes?: ClassSession[];
+            sessions?: ClassSession[];
+          };
       result?: ClassSession[];
     };
 
@@ -80,6 +158,23 @@ type ClassSessionResponse =
       classSession?: ClassSession;
       session?: ClassSession;
       data?: ClassSession;
+    };
+
+type ClassSessionSectionResponse =
+  | ClassSessionSection
+  | {
+      section?: ClassSessionSection;
+      classSessionSection?: ClassSessionSection;
+      data?: ClassSessionSection;
+    };
+
+type ClassSessionSectionExerciseResponse =
+  | ClassSessionSectionExercise
+  | {
+      exercise?: ClassSessionSectionExercise;
+      sectionExercise?: ClassSessionSectionExercise;
+      classSessionSectionExercise?: ClassSessionSectionExercise;
+      data?: ClassSessionSectionExercise;
     };
 
 export interface ClassSessionAttendanceResult {
@@ -113,13 +208,13 @@ type ClassSessionAttendanceResponse =
 
 function unwrapClassSessions(response: ClassSessionsResponse) {
   if (Array.isArray(response)) {
-    return response;
+    return sortClassSessions(response.map(normalizeClassSession));
   }
 
   const data = response.data;
 
   if (Array.isArray(data)) {
-    return data;
+    return sortClassSessions(data.map(normalizeClassSession));
   }
 
   if (data && typeof data === "object") {
@@ -129,30 +224,149 @@ function unwrapClassSessions(response: ClassSessionsResponse) {
       sessions?: ClassSession[];
     };
 
-    return nested.classSessions ?? nested.classes ?? nested.sessions ?? [];
+    return sortClassSessions(
+      (nested.classSessions ?? nested.classes ?? nested.sessions ?? []).map(
+        normalizeClassSession,
+      ),
+    );
   }
 
-  return (
-    response.classSessions ??
-    response.classes ??
-    response.sessions ??
-    response.result ??
-    []
+  return sortClassSessions(
+    (
+      response.classSessions ??
+      response.classes ??
+      response.sessions ??
+      response.result ??
+      []
+    ).map(normalizeClassSession),
   );
 }
 
 function unwrapClassSession(response: ClassSessionResponse) {
   if ("id" in response) {
-    return response;
+    return normalizeClassSession(response);
   }
 
-  const session = response.classSession ?? response.session ?? response.data ?? null;
+  const session =
+    response.classSession ?? response.session ?? response.data ?? null;
 
   if (!session) {
     throw new Error("La API no devolvio la clase");
   }
 
-  return session;
+  return normalizeClassSession(session);
+}
+
+function unwrapClassSessionSection(response: ClassSessionSectionResponse) {
+  if ("id" in response) {
+    return normalizeClassSessionSection(response);
+  }
+
+  const section =
+    response.section ?? response.classSessionSection ?? response.data ?? null;
+
+  if (!section) {
+    throw new Error("La API no devolvio la seccion");
+  }
+
+  return normalizeClassSessionSection(section);
+}
+
+function unwrapClassSessionSectionExercise(
+  response: ClassSessionSectionExerciseResponse,
+) {
+  if ("id" in response) {
+    return normalizeClassSessionSectionExercise(response);
+  }
+
+  const exercise =
+    response.exercise ??
+    response.sectionExercise ??
+    response.classSessionSectionExercise ??
+    response.data ??
+    null;
+
+  if (!exercise) {
+    throw new Error("La API no devolvio el ejercicio de la seccion");
+  }
+
+  return normalizeClassSessionSectionExercise(exercise);
+}
+
+function optionalNumber(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const numberValue =
+    typeof value === "number" ? value : Number.parseInt(String(value), 10);
+
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function normalizeClassSessionSectionExercise(
+  exercise: ClassSessionSectionExercise,
+): ClassSessionSectionExercise {
+  return {
+    ...exercise,
+    durationSec: optionalNumber(exercise.durationSec),
+    reps: optionalNumber(exercise.reps),
+    restSec: optionalNumber(exercise.restSec),
+    orderIndex: optionalNumber(exercise.orderIndex) ?? 0,
+  };
+}
+
+function normalizeClassSessionSection(
+  section: ClassSessionSection,
+): ClassSessionSection {
+  return {
+    ...section,
+    durationMinutes: optionalNumber(section.durationMinutes),
+    durationSec: optionalNumber(section.durationSec),
+    orderIndex: optionalNumber(section.orderIndex) ?? 0,
+    exercises: sortClassSessionSectionExercises(
+      (section.exercises ?? []).map(normalizeClassSessionSectionExercise),
+    ),
+  };
+}
+
+function normalizeClassSession(session: ClassSession): ClassSession {
+  return {
+    ...session,
+    sections: sortClassSessionSections(
+      (session.sections ?? []).map(normalizeClassSessionSection),
+    ),
+  };
+}
+
+function sortClassSessionSectionExercises(
+  exercises: ClassSessionSectionExercise[],
+) {
+  return [...exercises].sort((firstExercise, secondExercise) => {
+    const orderDiff = firstExercise.orderIndex - secondExercise.orderIndex;
+
+    if (orderDiff !== 0) {
+      return orderDiff;
+    }
+
+    return firstExercise.id.localeCompare(secondExercise.id);
+  });
+}
+
+function sortClassSessionSections(sections: ClassSessionSection[]) {
+  return [...sections].sort((firstSection, secondSection) => {
+    const orderDiff = firstSection.orderIndex - secondSection.orderIndex;
+
+    if (orderDiff !== 0) {
+      return orderDiff;
+    }
+
+    return firstSection.id.localeCompare(secondSection.id);
+  });
+}
+
+function sortClassSessions(sessions: ClassSession[]) {
+  return sessions;
 }
 
 function buildClassesPath(filters?: ClassSessionFilters) {
@@ -232,7 +446,8 @@ function unwrapAttendanceResult(
   return {
     attendance: source.attendance,
     classSession,
-    attendanceCount: source.attendanceCount ?? getCountFromSession(classSession),
+    attendanceCount:
+      source.attendanceCount ?? getCountFromSession(classSession),
     hasCurrentUserAttendance:
       source.hasCurrentUserAttendance ??
       classSession?.hasCurrentUserAttendance ??
@@ -341,6 +556,121 @@ export async function updateClassSessionEnabled(
   );
 
   return unwrapClassSession(response);
+}
+
+export async function createClassSessionSection(
+  classSessionId: string,
+  input: ClassSessionSectionInput,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionSectionResponse>(
+    `/class-sessions/${classSessionId}/sections`,
+    {
+      accessToken,
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+
+  return unwrapClassSessionSection(response);
+}
+
+export async function updateClassSessionSection(
+  sectionId: string,
+  input: UpdateClassSessionSectionInput,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionSectionResponse>(
+    `/class-session-sections/${sectionId}`,
+    {
+      accessToken,
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+
+  return unwrapClassSessionSection(response);
+}
+
+export async function deleteClassSessionSection(
+  sectionId: string,
+  accessToken?: string | null,
+) {
+  await apiFetch<void>(`/class-session-sections/${sectionId}`, {
+    accessToken,
+    method: "DELETE",
+  });
+}
+
+export async function reorderClassSessionSections(
+  classSessionId: string,
+  input: ReorderClassSessionSectionsInput,
+  accessToken?: string | null,
+) {
+  await apiFetch<void>(`/class-sessions/${classSessionId}/sections/reorder`, {
+    accessToken,
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function addExerciseToClassSessionSection(
+  sectionId: string,
+  input: ClassSessionSectionExerciseInput,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionSectionExerciseResponse>(
+    `/class-session-sections/${sectionId}/exercises`,
+    {
+      accessToken,
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+
+  return unwrapClassSessionSectionExercise(response);
+}
+
+export async function updateClassSessionSectionExercise(
+  id: string,
+  input: UpdateClassSessionSectionExerciseInput,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionSectionExerciseResponse>(
+    `/class-session-section-exercises/${id}`,
+    {
+      accessToken,
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+
+  return unwrapClassSessionSectionExercise(response);
+}
+
+export async function deleteClassSessionSectionExercise(
+  id: string,
+  accessToken?: string | null,
+) {
+  await apiFetch<void>(`/class-session-section-exercises/${id}`, {
+    accessToken,
+    method: "DELETE",
+  });
+}
+
+export async function reorderClassSessionSectionExercises(
+  sectionId: string,
+  input: ReorderClassSessionSectionExercisesInput,
+  accessToken?: string | null,
+) {
+  await apiFetch<void>(
+    `/class-session-sections/${sectionId}/exercises/reorder`,
+    {
+      accessToken,
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export async function markAttendance(

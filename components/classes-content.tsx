@@ -395,6 +395,10 @@ export function ClassesContent() {
       ),
     [classSessionsQuery.data],
   );
+  const currentEditingSession = editingSession
+    ? (sessions.find((session) => session.id === editingSession.id) ??
+      editingSession)
+    : null;
 
   if (!canManageClasses) {
     return (
@@ -557,9 +561,9 @@ export function ClassesContent() {
       </section>
 
       <ClassSessionEditor
-        open={Boolean(editingSession)}
+        open={Boolean(currentEditingSession)}
         organizationId={classesOrganizationId}
-        session={editingSession}
+        session={currentEditingSession}
         isSaving={updateClassSession.isPending}
         saveError={updateClassSession.error}
         onSaveClass={handleEditorSave}
