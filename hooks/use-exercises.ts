@@ -52,6 +52,7 @@ export const exercisesQueryKey = (
     filters?.requiresPartner === undefined
       ? "all"
       : String(filters.requiresPartner),
+    filters?.isGlobal === undefined ? "all" : String(filters.isGlobal),
   ] as const;
 
 function sortExercises(exercises: BlockExercise[]) {

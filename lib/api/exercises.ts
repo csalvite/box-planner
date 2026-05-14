@@ -50,6 +50,7 @@ export interface Exercise {
   tags?: string[] | string | null;
   variants?: unknown[] | Record<string, unknown> | string | null;
   compatibilities?: unknown[] | Record<string, unknown> | string | null;
+  isGlobal?: boolean | null;
   isActive?: boolean | null;
   active?: boolean | null;
   createdAt?: string | Date | null;
@@ -81,6 +82,7 @@ export interface ExerciseFilters {
   level?: ExerciseLevel;
   intensity?: ExerciseIntensity;
   requiresPartner?: boolean;
+  isGlobal?: boolean;
 }
 
 export interface BlockExercise {
@@ -324,6 +326,10 @@ function buildExercisesPath(filters?: ExerciseFilters) {
 
   if (filters?.requiresPartner !== undefined) {
     params.set("requiresPartner", String(filters.requiresPartner));
+  }
+
+  if (filters?.isGlobal !== undefined) {
+    params.set("isGlobal", String(filters.isGlobal));
   }
 
   const query = params.toString();

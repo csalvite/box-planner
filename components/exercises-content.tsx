@@ -66,6 +66,8 @@ import { isStaffOrganization } from "@/lib/organization-role";
 import { cn } from "@/lib/utils";
 
 const ALL_VALUE = "all";
+const GLOBAL_SOURCE_VALUE = "global";
+const LOCAL_SOURCE_VALUE = "local";
 
 const categoryOptions: Array<{ value: ExerciseCategory; label: string }> = [
   { value: "WARMUP", label: "Calentamiento" },
@@ -359,15 +361,43 @@ function getExerciseDescription(exercise: Exercise) {
   );
 }
 
+function isGlobalExercise(exercise: Exercise) {
+  return exercise.isGlobal === true;
+}
+
+function getExerciseSourceLabel(exercise: Exercise) {
+  return isGlobalExercise(exercise) ? "BoxPlanner" : "Mi gimnasio";
+}
+
+function duplicatePayloadFromExercise(exercise: Exercise): CreateExercisePayload {
+  return {
+    name: exercise.name,
+    category: normalizeExerciseCategory(exercise.category),
+    level: normalizeExerciseLevel(exercise.level),
+    intensity: normalizeExerciseIntensity(exercise.intensity),
+    shortDescription:
+      exercise.shortDescription ?? exercise.description ?? undefined,
+    detailedDescription: exercise.detailedDescription ?? undefined,
+    mainGoal: exercise.mainGoal ?? undefined,
+    averageDurationMinutes: exercise.averageDurationMinutes ?? undefined,
+    recommendedGroupSize: exercise.recommendedGroupSize ?? undefined,
+    spaceRequired: exercise.spaceRequired ?? undefined,
+    requiresPartner: Boolean(exercise.requiresPartner),
+    coachNotes: exercise.coachNotes ?? undefined,
+  };
+}
+
 function ExerciseDetail({
   exercise,
   onClose,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   exercise: Exercise;
   onClose: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const tags = listFromValue(exercise.tags);
@@ -376,6 +406,7 @@ function ExerciseDetail({
   );
   const variants = renderUnknownValue(exercise.variants);
   const compatibilities = renderUnknownValue(exercise.compatibilities);
+  const isGlobal = isGlobalExercise(exercise);
 
   return (
     <div className="space-y-5">
@@ -395,6 +426,9 @@ function ExerciseDetail({
           </Badge>
           <Badge variant="secondary">
             {getExerciseIntensityLabel(exercise.intensity)}
+          </Badge>
+          <Badge variant={isGlobal ? "default" : "outline"}>
+            {getExerciseSourceLabel(exercise)}
           </Badge>
         </div>
         {exercise.shortDescription ?? exercise.description ? (
@@ -433,6 +467,7 @@ function ExerciseDetail({
           label="requiere pareja"
           value={exercise.requiresPartner ? "si" : "no"}
         />
+        <DetailRow label="origen" value={getExerciseSourceLabel(exercise)} />
       </dl>
 
       <dl className="space-y-3">
@@ -473,7 +508,7 @@ function ExerciseDetail({
         <DetailRow label="compatibilidades" value={compatibilities} />
       </dl>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className={cn("grid gap-3", isGlobal ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
         <Button
           type="button"
           variant="outline"
@@ -482,19 +517,28 @@ function ExerciseDetail({
         >
           cerrar
         </Button>
-        <Button type="button" onClick={onEdit}>
-          <Pencil className="h-4 w-4" />
-          editar
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="bg-transparent text-destructive hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-4 w-4" />
-          desactivar
-        </Button>
+        {isGlobal ? (
+          <Button type="button" onClick={onDuplicate}>
+            <Plus className="h-4 w-4" />
+            usar como base
+          </Button>
+        ) : (
+          <>
+            <Button type="button" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+              editar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-transparent text-destructive hover:text-destructive"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4" />
+              desactivar
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -767,19 +811,24 @@ function ExerciseForm({
 function ExerciseCard({
   exercise,
   isDeleting,
+  isDuplicating,
   onViewDetail,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   exercise: Exercise;
   isDeleting: boolean;
+  isDuplicating: boolean;
   onViewDetail: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const badges = getExerciseBadges(exercise);
   const isInactive = exercise.isActive === false || exercise.active === false;
   const category = normalizeExerciseCategory(exercise.category);
+  const isGlobal = isGlobalExercise(exercise);
 
   return (
     <Card
@@ -806,6 +855,16 @@ function ExerciseCard({
                   pareja
                 </span>
               ) : null}
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium ring-1",
+                  isGlobal
+                    ? "bg-primary text-primary-foreground ring-primary/30"
+                    : "bg-background/60 text-muted-foreground ring-border/80",
+                )}
+              >
+                {getExerciseSourceLabel(exercise)}
+              </span>
             </div>
             <h3 className="text-lg font-semibold leading-tight text-foreground">
               {exercise.name}
@@ -885,25 +944,39 @@ function ExerciseCard({
           >
             ver detalle
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="bg-transparent"
-            onClick={onEdit}
-          >
-            <Pencil className="h-4 w-4" />
-            editar
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="bg-transparent text-destructive hover:text-destructive"
-            disabled={isDeleting}
-            onClick={onDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-            desactivar
-          </Button>
+          {isGlobal ? (
+            <Button
+              type="button"
+              className="sm:col-span-2"
+              disabled={isDuplicating}
+              onClick={onDuplicate}
+            >
+              <Plus className="h-4 w-4" />
+              usar como base
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent"
+                onClick={onEdit}
+              >
+                <Pencil className="h-4 w-4" />
+                editar
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent text-destructive hover:text-destructive"
+                disabled={isDeleting}
+                onClick={onDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                desactivar
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </Card>
@@ -919,6 +992,7 @@ export function ExercisesContent() {
   const [levelFilter, setLevelFilter] = useState(ALL_VALUE);
   const [intensityFilter, setIntensityFilter] = useState(ALL_VALUE);
   const [requiresPartnerFilter, setRequiresPartnerFilter] = useState(ALL_VALUE);
+  const [sourceFilter, setSourceFilter] = useState(ALL_VALUE);
   const debouncedSearchTerm = useDebouncedValue(searchTerm.trim());
   const filters = useMemo<ExerciseFilters>(
     () => ({
@@ -935,6 +1009,8 @@ export function ExercisesContent() {
       ...(requiresPartnerFilter !== ALL_VALUE
         ? { requiresPartner: requiresPartnerFilter === "true" }
         : {}),
+      ...(sourceFilter === GLOBAL_SOURCE_VALUE ? { isGlobal: true } : {}),
+      ...(sourceFilter === LOCAL_SOURCE_VALUE ? { isGlobal: false } : {}),
     }),
     [
       categoryFilter,
@@ -942,6 +1018,7 @@ export function ExercisesContent() {
       intensityFilter,
       levelFilter,
       requiresPartnerFilter,
+      sourceFilter,
     ],
   );
   const exercisesQuery = useExercises(exercisesOrganizationId, filters);
@@ -962,7 +1039,8 @@ export function ExercisesContent() {
     categoryFilter !== ALL_VALUE ||
     levelFilter !== ALL_VALUE ||
     intensityFilter !== ALL_VALUE ||
-    requiresPartnerFilter !== ALL_VALUE;
+    requiresPartnerFilter !== ALL_VALUE ||
+    sourceFilter !== ALL_VALUE;
 
   if (!canManageExercises) {
     return (
@@ -1002,6 +1080,7 @@ export function ExercisesContent() {
     setLevelFilter(ALL_VALUE);
     setIntensityFilter(ALL_VALUE);
     setRequiresPartnerFilter(ALL_VALUE);
+    setSourceFilter(ALL_VALUE);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1049,6 +1128,11 @@ export function ExercisesContent() {
       return;
     }
 
+    if (isGlobalExercise(exerciseToDelete)) {
+      setExerciseToDelete(null);
+      return;
+    }
+
     const deletePromise = deleteExercise.mutateAsync(exerciseToDelete.id);
 
     toast.promise(deletePromise, {
@@ -1060,6 +1144,25 @@ export function ExercisesContent() {
     try {
       await deletePromise;
       setExerciseToDelete(null);
+    } catch {
+      // react query keeps the detailed error for the inline state
+    }
+  };
+
+  const handleDuplicateExercise = async (exercise: Exercise) => {
+    const duplicatePromise = createExercise.mutateAsync(
+      duplicatePayloadFromExercise(exercise),
+    );
+
+    toast.promise(duplicatePromise, {
+      loading: "duplicando ejercicio...",
+      success: "ejercicio duplicado en tu gimnasio",
+      error: "no se pudo duplicar el ejercicio",
+    });
+
+    try {
+      await duplicatePromise;
+      setDetailExercise(null);
     } catch {
       // react query keeps the detailed error for the inline state
     }
@@ -1173,6 +1276,7 @@ export function ExercisesContent() {
                 openEditForm(detailExercise);
                 setDetailExercise(null);
               }}
+              onDuplicate={() => void handleDuplicateExercise(detailExercise)}
               onDelete={() => {
                 setExerciseToDelete(detailExercise);
                 setDetailExercise(null);
@@ -1202,7 +1306,7 @@ export function ExercisesContent() {
               />
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+            <div className="grid gap-3 md:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger id="exercise-category-filter">
                   <SelectValue placeholder="categoria" />
@@ -1256,6 +1360,17 @@ export function ExercisesContent() {
                   <SelectItem value={ALL_VALUE}>pareja: todos</SelectItem>
                   <SelectItem value="true">requiere pareja</SelectItem>
                   <SelectItem value="false">sin pareja</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger id="exercise-source-filter">
+                  <SelectValue placeholder="origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>todos</SelectItem>
+                  <SelectItem value={GLOBAL_SOURCE_VALUE}>BoxPlanner</SelectItem>
+                  <SelectItem value={LOCAL_SOURCE_VALUE}>Mi gimnasio</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1316,8 +1431,10 @@ export function ExercisesContent() {
                       deleteExercise.isPending &&
                       deleteExercise.variables === exercise.id
                     }
+                    isDuplicating={createExercise.isPending}
                     onViewDetail={() => setDetailExercise(exercise)}
                     onEdit={() => openEditForm(exercise)}
+                    onDuplicate={() => void handleDuplicateExercise(exercise)}
                     onDelete={() => setExerciseToDelete(exercise)}
                   />
                 ))}
@@ -1331,7 +1448,8 @@ export function ExercisesContent() {
                     categoryFilter !== ALL_VALUE ||
                     levelFilter !== ALL_VALUE ||
                     intensityFilter !== ALL_VALUE ||
-                    requiresPartnerFilter !== ALL_VALUE
+                    requiresPartnerFilter !== ALL_VALUE ||
+                    sourceFilter !== ALL_VALUE
                       ? "ajusta los filtros o crea un ejercicio nuevo."
                       : "crea el primer ejercicio reutilizable de tu biblioteca."
                   }
