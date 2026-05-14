@@ -237,7 +237,13 @@ export function useCreateClassSessionSection(organizationId?: string | null) {
     }: {
       classSessionId: string;
       input: ClassSessionSectionInput;
-    }) => createClassSessionSection(classSessionId, input, accessToken),
+    }) =>
+      createClassSessionSection(
+        organizationId as string,
+        classSessionId,
+        input,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -253,7 +259,13 @@ export function useUpdateClassSessionSection(organizationId?: string | null) {
     }: {
       sectionId: string;
       input: UpdateClassSessionSectionInput;
-    }) => updateClassSessionSection(sectionId, input, accessToken),
+    }) =>
+      updateClassSessionSection(
+        organizationId as string,
+        sectionId,
+        input,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -264,7 +276,11 @@ export function useDeleteClassSessionSection(organizationId?: string | null) {
 
   return useMutation({
     mutationFn: (sectionId: string) =>
-      deleteClassSessionSection(sectionId, accessToken),
+      deleteClassSessionSection(
+        organizationId as string,
+        sectionId,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -280,7 +296,13 @@ export function useReorderClassSessionSections(organizationId?: string | null) {
     }: {
       classSessionId: string;
       input: ReorderClassSessionSectionsInput;
-    }) => reorderClassSessionSections(classSessionId, input, accessToken),
+    }) =>
+      reorderClassSessionSections(
+        organizationId as string,
+        classSessionId,
+        input,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -298,7 +320,13 @@ export function useAddExerciseToClassSessionSection(
     }: {
       sectionId: string;
       input: ClassSessionSectionExerciseInput;
-    }) => addExerciseToClassSessionSection(sectionId, input, accessToken),
+    }) =>
+      addExerciseToClassSessionSection(
+        organizationId as string,
+        sectionId,
+        input,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -316,7 +344,13 @@ export function useUpdateClassSessionSectionExercise(
     }: {
       exerciseId: string;
       input: UpdateClassSessionSectionExerciseInput;
-    }) => updateClassSessionSectionExercise(exerciseId, input, accessToken),
+    }) =>
+      updateClassSessionSectionExercise(
+        organizationId as string,
+        exerciseId,
+        input,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -329,7 +363,11 @@ export function useDeleteClassSessionSectionExercise(
 
   return useMutation({
     mutationFn: (exerciseId: string) =>
-      deleteClassSessionSectionExercise(exerciseId, accessToken),
+      deleteClassSessionSectionExercise(
+        organizationId as string,
+        exerciseId,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }
@@ -347,7 +385,13 @@ export function useReorderClassSessionSectionExercises(
     }: {
       sectionId: string;
       input: ReorderClassSessionSectionExercisesInput;
-    }) => reorderClassSessionSectionExercises(sectionId, input, accessToken),
+    }) =>
+      reorderClassSessionSectionExercises(
+        organizationId as string,
+        sectionId,
+        input,
+        accessToken,
+      ),
     onSuccess: async () => refreshClassSessions(queryClient, organizationId),
   });
 }

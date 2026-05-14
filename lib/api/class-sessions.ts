@@ -30,8 +30,10 @@ export interface ClassSession {
   classType?: ApiTraining | null;
   trainingId?: string | null;
   training?: ApiTraining | null;
-  startsAt: string | Date;
+  startsAt?: string | Date | null;
   endsAt?: string | Date | null;
+  durationMinutes?: number | null;
+  estimatedDurationMinutes?: number | null;
   status?: ClassSessionStatus | null;
   isEnabled?: boolean | null;
   notes?: string | null;
@@ -84,10 +86,12 @@ export interface ClassSessionSectionExercise {
 
 export interface CreateClassSessionInput {
   title: string;
-  trainingId?: string;
-  startsAt: string;
-  endsAt?: string;
-  notes?: string;
+  trainingId?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  durationMinutes?: number | null;
+  estimatedDurationMinutes?: number | null;
+  notes?: string | null;
 }
 
 export type UpdateClassSessionInput = Partial<
@@ -369,6 +373,10 @@ function sortClassSessions(sessions: ClassSession[]) {
   return sessions;
 }
 
+function organizationHeaders(organizationId?: string | null) {
+  return organizationId ? { "x-organization-id": organizationId } : undefined;
+}
+
 function buildClassesPath(filters?: ClassSessionFilters) {
   const params = new URLSearchParams();
 
@@ -559,6 +567,7 @@ export async function updateClassSessionEnabled(
 }
 
 export async function createClassSessionSection(
+  organizationId: string,
   classSessionId: string,
   input: ClassSessionSectionInput,
   accessToken?: string | null,
@@ -567,6 +576,7 @@ export async function createClassSessionSection(
     `/class-sessions/${classSessionId}/sections`,
     {
       accessToken,
+      headers: organizationHeaders(organizationId),
       method: "POST",
       body: JSON.stringify(input),
     },
@@ -576,6 +586,7 @@ export async function createClassSessionSection(
 }
 
 export async function updateClassSessionSection(
+  organizationId: string,
   sectionId: string,
   input: UpdateClassSessionSectionInput,
   accessToken?: string | null,
@@ -584,6 +595,7 @@ export async function updateClassSessionSection(
     `/class-session-sections/${sectionId}`,
     {
       accessToken,
+      headers: organizationHeaders(organizationId),
       method: "PATCH",
       body: JSON.stringify(input),
     },
@@ -593,28 +605,33 @@ export async function updateClassSessionSection(
 }
 
 export async function deleteClassSessionSection(
+  organizationId: string,
   sectionId: string,
   accessToken?: string | null,
 ) {
   await apiFetch<void>(`/class-session-sections/${sectionId}`, {
     accessToken,
+    headers: organizationHeaders(organizationId),
     method: "DELETE",
   });
 }
 
 export async function reorderClassSessionSections(
+  organizationId: string,
   classSessionId: string,
   input: ReorderClassSessionSectionsInput,
   accessToken?: string | null,
 ) {
   await apiFetch<void>(`/class-sessions/${classSessionId}/sections/reorder`, {
     accessToken,
+    headers: organizationHeaders(organizationId),
     method: "PATCH",
     body: JSON.stringify(input),
   });
 }
 
 export async function addExerciseToClassSessionSection(
+  organizationId: string,
   sectionId: string,
   input: ClassSessionSectionExerciseInput,
   accessToken?: string | null,
@@ -623,6 +640,7 @@ export async function addExerciseToClassSessionSection(
     `/class-session-sections/${sectionId}/exercises`,
     {
       accessToken,
+      headers: organizationHeaders(organizationId),
       method: "POST",
       body: JSON.stringify(input),
     },
@@ -632,6 +650,7 @@ export async function addExerciseToClassSessionSection(
 }
 
 export async function updateClassSessionSectionExercise(
+  organizationId: string,
   id: string,
   input: UpdateClassSessionSectionExerciseInput,
   accessToken?: string | null,
@@ -640,6 +659,7 @@ export async function updateClassSessionSectionExercise(
     `/class-session-section-exercises/${id}`,
     {
       accessToken,
+      headers: organizationHeaders(organizationId),
       method: "PATCH",
       body: JSON.stringify(input),
     },
@@ -649,16 +669,19 @@ export async function updateClassSessionSectionExercise(
 }
 
 export async function deleteClassSessionSectionExercise(
+  organizationId: string,
   id: string,
   accessToken?: string | null,
 ) {
   await apiFetch<void>(`/class-session-section-exercises/${id}`, {
     accessToken,
+    headers: organizationHeaders(organizationId),
     method: "DELETE",
   });
 }
 
 export async function reorderClassSessionSectionExercises(
+  organizationId: string,
   sectionId: string,
   input: ReorderClassSessionSectionExercisesInput,
   accessToken?: string | null,
@@ -667,6 +690,7 @@ export async function reorderClassSessionSectionExercises(
     `/class-session-sections/${sectionId}/exercises/reorder`,
     {
       accessToken,
+      headers: organizationHeaders(organizationId),
       method: "PATCH",
       body: JSON.stringify(input),
     },

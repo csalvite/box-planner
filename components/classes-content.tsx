@@ -127,7 +127,42 @@ function addMinutesToIsoDateTime(value: string, minutes: string) {
   return new Date(date.getTime() + durationMinutes * 60000).toISOString();
 }
 
-function formatSessionDate(value: string | Date) {
+function optionalNumber(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const numberValue = Number.parseInt(trimmed, 10);
+
+  return Number.isFinite(numberValue) && numberValue > 0
+    ? numberValue
+    : undefined;
+}
+
+function getEstimatedDuration(session: ClassSession) {
+  return session.estimatedDurationMinutes ?? session.durationMinutes ?? null;
+}
+
+function getSessionTime(session: ClassSession) {
+  if (!session.startsAt) {
+    return null;
+  }
+
+  const date = new Date(session.startsAt);
+
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function formatSessionDate(value?: string | Date | null) {
+  if (!value) {
+    return {
+      day: "sin programar",
+      time: "borrador",
+    };
+  }
+
   const date = value instanceof Date ? value : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -151,10 +186,10 @@ function formatSessionDate(value: string | Date) {
 }
 
 function formatDuration(
-  startsAt: string | Date,
+  startsAt?: string | Date | null,
   endsAt?: string | Date | null,
 ) {
-  if (!endsAt) {
+  if (!startsAt || !endsAt) {
     return null;
   }
 
@@ -244,6 +279,8 @@ function ClassSessionCard({
   const dateTime = formatSessionDate(session.startsAt);
   const displayState = getDisplayState(session);
   const duration = formatDuration(session.startsAt, session.endsAt);
+  const estimatedDuration = getEstimatedDuration(session);
+  const isUnscheduled = !getSessionTime(session);
   const isMuted = displayState === "DISABLED" || displayState === "CANCELLED";
   const toggleStatusLabel =
     displayState === "DISABLED" ? "habilitar" : "deshabilitar";
@@ -269,6 +306,11 @@ function ClassSessionCard({
             <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-white/10">
               {dateTime.day}
             </span>
+            {isUnscheduled ? (
+              <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border/80">
+                borrador
+              </span>
+            ) : null}
           </div>
 
           <div>
@@ -284,6 +326,11 @@ function ClassSessionCard({
                 <span className="flex items-center gap-1.5">
                   <CalendarClock className="h-4 w-4" />
                   {duration}
+                </span>
+              ) : estimatedDuration ? (
+                <span className="flex items-center gap-1.5">
+                  <CalendarClock className="h-4 w-4" />
+                  {estimatedDuration} min estimados
                 </span>
               ) : null}
               <span className="flex items-center gap-1.5">
@@ -389,9 +436,24 @@ export function ClassesContent() {
   const sessions = useMemo(
     () =>
       [...(classSessionsQuery.data ?? [])].sort(
-        (firstSession, secondSession) =>
-          new Date(firstSession.startsAt).getTime() -
-          new Date(secondSession.startsAt).getTime(),
+        (firstSession, secondSession) => {
+          const firstTime = getSessionTime(firstSession);
+          const secondTime = getSessionTime(secondSession);
+
+          if (firstTime === null && secondTime === null) {
+            return firstSession.title.localeCompare(secondSession.title);
+          }
+
+          if (firstTime === null) {
+            return -1;
+          }
+
+          if (secondTime === null) {
+            return 1;
+          }
+
+          return firstTime - secondTime;
+        },
       ),
     [classSessionsQuery.data],
   );
@@ -420,26 +482,31 @@ export function ClassesContent() {
       return;
     }
 
-    if (!form.startsAt) {
-      setFormError("Selecciona fecha y hora de inicio.");
+    const startsAt = form.startsAt ? toIsoDateTime(form.startsAt) : undefined;
+    const endsAt = form.endsAt
+      ? (toIsoDateTime(form.endsAt) ?? undefined)
+      : form.startsAt
+        ? addMinutesToIsoDateTime(form.startsAt, form.durationMinutes)
+        : undefined;
+    const durationMinutes = optionalNumber(form.durationMinutes);
+
+    if ((form.startsAt && !startsAt) || (form.endsAt && !endsAt)) {
+      setFormError("Revisa la fecha y hora de la clase.");
       return;
     }
 
-    const startsAt = toIsoDateTime(form.startsAt);
-    const endsAt = form.endsAt
-      ? (toIsoDateTime(form.endsAt) ?? undefined)
-      : addMinutesToIsoDateTime(form.startsAt, form.durationMinutes);
-
-    if (!startsAt || (form.endsAt && !endsAt)) {
-      setFormError("Revisa la fecha y hora de la clase.");
+    if (form.endsAt && !form.startsAt) {
+      setFormError("Para indicar fin, selecciona tambien un inicio.");
       return;
     }
 
     try {
       const createPromise = createClassSession.mutateAsync({
         title: form.title.trim(),
-        startsAt,
-        endsAt,
+        startsAt: startsAt ?? null,
+        endsAt: endsAt ?? null,
+        durationMinutes,
+        estimatedDurationMinutes: durationMinutes,
         notes: form.notes.trim() || undefined,
       });
 
@@ -626,8 +693,8 @@ export function ClassesContent() {
                   crear nueva clase
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  primero guarda lo basico; despues anade secciones y
-                  ejercicios.
+                  guarda una clase reutilizable y programala ahora solo si lo
+                  necesitas.
                 </p>
               </div>
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -649,7 +716,7 @@ export function ClassesContent() {
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <div className="space-y-2">
-                <Label htmlFor="class-start">inicio</Label>
+                <Label htmlFor="class-start">inicio opcional</Label>
                 <Input
                   id="class-start"
                   type="datetime-local"
@@ -673,7 +740,7 @@ export function ClassesContent() {
               </div>
 
               <div className="space-y-2 sm:col-span-2 xl:col-span-1">
-                <Label htmlFor="class-duration">duracion min.</Label>
+                <Label htmlFor="class-duration">duracion estimada min.</Label>
                 <Input
                   id="class-duration"
                   type="number"
@@ -720,11 +787,9 @@ export function ClassesContent() {
 
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">
-              proximas clases
-            </h2>
+            <h2 className="text-xl font-semibold text-foreground">clases</h2>
             <p className="text-sm text-muted-foreground">
-              {sessions.length} clases programadas
+              {sessions.length} clases entre borradores y programadas
             </p>
           </div>
 
@@ -763,7 +828,7 @@ export function ClassesContent() {
           {classSessionsQuery.isLoading ? (
             <LoadingState
               title="cargando clases"
-              description="estamos leyendo las clases programadas."
+              description="estamos leyendo borradores y clases programadas."
               className="min-h-[320px]"
             />
           ) : null}
@@ -841,7 +906,7 @@ export function ClassesContent() {
             !classSessionsQuery.error &&
             sessions.length === 0 && (
               <EmptyState
-                title="todavia no hay clases programadas"
+                title="todavia no hay clases"
                 description="crea la primera clase y preparala con secciones y ejercicios."
                 icon={CalendarClock}
                 className="min-h-[320px]"

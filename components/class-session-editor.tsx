@@ -202,6 +202,10 @@ function optionalNumber(value: string) {
     : undefined;
 }
 
+function getEstimatedDuration(session: ClassSession) {
+  return session.estimatedDurationMinutes ?? session.durationMinutes ?? null;
+}
+
 function minutesToSeconds(value: string) {
   const minutes = optionalNumber(value);
 
@@ -240,7 +244,11 @@ function getExerciseDescription(exercise: Exercise) {
   );
 }
 
-function formatClassDate(value: string | Date) {
+function formatClassDate(value?: string | Date | null) {
+  if (!value) {
+    return "sin programar";
+  }
+
   const date = value instanceof Date ? value : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -455,7 +463,7 @@ export function ClassSessionEditor({
       title: session.title,
       startsAt: toDateTimeInputValue(session.startsAt),
       endsAt: toDateTimeInputValue(session.endsAt),
-      durationMinutes: "",
+      durationMinutes: getEstimatedDuration(session)?.toString() ?? "",
       status: normalizeStatus(session.status),
       notes: session.notes ?? "",
     });
@@ -492,25 +500,32 @@ export function ClassSessionEditor({
       return;
     }
 
-    if (!classForm.startsAt) {
-      setFormError("Selecciona fecha y hora de inicio.");
+    const startsAt = classForm.startsAt
+      ? toIsoDateTime(classForm.startsAt)
+      : null;
+    const endsAt = classForm.endsAt
+      ? (toIsoDateTime(classForm.endsAt) ?? undefined)
+      : classForm.startsAt
+        ? addMinutesToIsoDateTime(classForm.startsAt, classForm.durationMinutes)
+        : null;
+    const durationMinutes = optionalNumber(classForm.durationMinutes);
+
+    if ((classForm.startsAt && !startsAt) || (classForm.endsAt && !endsAt)) {
+      setFormError("Revisa las fechas de la clase.");
       return;
     }
 
-    const startsAt = toIsoDateTime(classForm.startsAt);
-    const endsAt = classForm.endsAt
-      ? (toIsoDateTime(classForm.endsAt) ?? undefined)
-      : addMinutesToIsoDateTime(classForm.startsAt, classForm.durationMinutes);
-
-    if (!startsAt || (classForm.endsAt && !endsAt)) {
-      setFormError("Revisa las fechas de la clase.");
+    if (classForm.endsAt && !classForm.startsAt) {
+      setFormError("Para indicar fin, selecciona tambien un inicio.");
       return;
     }
 
     const savePromise = onSaveClass(session.id, {
       title: classForm.title.trim(),
       startsAt,
-      endsAt,
+      endsAt: endsAt ?? null,
+      durationMinutes,
+      estimatedDurationMinutes: durationMinutes,
       notes: classForm.notes.trim() || undefined,
       status: classForm.status,
     });
@@ -757,7 +772,7 @@ export function ClassSessionEditor({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl lg:p-7">
+        <DialogContent className="sm:max-w-5xl xl:max-w-6xl lg:p-7">
           <DialogHeader>
             <DialogTitle>preparar clase</DialogTitle>
             <DialogDescription>
@@ -791,7 +806,7 @@ export function ClassSessionEditor({
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="editor-class-start">inicio</Label>
+                    <Label htmlFor="editor-class-start">inicio opcional</Label>
                     <Input
                       id="editor-class-start"
                       type="datetime-local"
@@ -821,7 +836,9 @@ export function ClassSessionEditor({
                   </div>
 
                   <div className="space-y-2 sm:col-span-2 lg:col-span-1 xl:col-span-2">
-                    <Label htmlFor="editor-class-duration">duracion min.</Label>
+                    <Label htmlFor="editor-class-duration">
+                      duracion estimada min.
+                    </Label>
                     <Input
                       id="editor-class-duration"
                       type="number"

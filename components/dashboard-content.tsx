@@ -15,7 +15,14 @@ import { useClassSessions } from "@/hooks/use-class-sessions";
 import { isViewerOrganization } from "@/lib/organization-role";
 import type { ClassSession } from "@/lib/api/class-sessions";
 
-function formatSessionDate(value: string | Date) {
+function formatSessionDate(value?: string | Date | null) {
+  if (!value) {
+    return {
+      day: "sin programar",
+      time: "hora pendiente",
+    };
+  }
+
   const date = value instanceof Date ? value : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -46,12 +53,20 @@ function getNextSession(sessions: ClassSession[]) {
   const now = Date.now();
 
   return [...sessions]
-    .filter((session) => new Date(session.startsAt).getTime() >= now)
+    .map((session) => ({
+      session,
+      startsAtTime: session.startsAt
+        ? new Date(session.startsAt).getTime()
+        : Number.NaN,
+    }))
+    .filter(
+      ({ startsAtTime }) =>
+        Number.isFinite(startsAtTime) && startsAtTime >= now,
+    )
     .sort(
       (firstSession, secondSession) =>
-        new Date(firstSession.startsAt).getTime() -
-        new Date(secondSession.startsAt).getTime(),
-    )[0];
+        firstSession.startsAtTime - secondSession.startsAtTime,
+    )[0]?.session;
 }
 
 function NextClassCard({ session }: { session: ClassSession }) {
