@@ -8,6 +8,7 @@ import {
   Dumbbell,
   FileText,
   Handshake,
+  ListRestart,
   Pencil,
   Plus,
   Search,
@@ -288,6 +289,58 @@ function listFromValue(value: unknown) {
   return [];
 }
 
+function renderUnknownValue(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "si" : "no";
+  }
+
+  if (Array.isArray(value)) {
+    const values: string[] = value
+      .map((item) => renderUnknownValue(item))
+      .filter((item): item is string => Boolean(item));
+
+    return values.length > 0 ? values.join(", ") : null;
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return null;
+}
+
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-sm leading-6 text-foreground">{value}</dd>
+    </div>
+  );
+}
+
 function getExerciseBadges(exercise: Exercise) {
   const material = listFromValue(
     exercise.material ?? exercise.materials ?? exercise.equipment,
@@ -303,6 +356,147 @@ function getExerciseDescription(exercise: Exercise) {
     exercise.description ??
     exercise.detailedDescription ??
     "sin descripcion corta"
+  );
+}
+
+function ExerciseDetail({
+  exercise,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  exercise: Exercise;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const tags = listFromValue(exercise.tags);
+  const materials = listFromValue(
+    exercise.materials ?? exercise.material ?? exercise.equipment,
+  );
+  const variants = renderUnknownValue(exercise.variants);
+  const compatibilities = renderUnknownValue(exercise.compatibilities);
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              "border-transparent",
+              categoryColors[normalizeExerciseCategory(exercise.category)],
+            )}
+          >
+            {getExerciseCategoryLabel(exercise.category)}
+          </Badge>
+          <Badge variant="secondary">
+            {getExerciseLevelLabel(exercise.level)}
+          </Badge>
+          <Badge variant="secondary">
+            {getExerciseIntensityLabel(exercise.intensity)}
+          </Badge>
+        </div>
+        {exercise.shortDescription ?? exercise.description ? (
+          <p className="text-sm leading-6 text-muted-foreground">
+            {exercise.shortDescription ?? exercise.description}
+          </p>
+        ) : null}
+      </div>
+
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <DetailRow label="nombre" value={exercise.name} />
+        <DetailRow
+          label="categoria"
+          value={getExerciseCategoryLabel(exercise.category)}
+        />
+        <DetailRow label="nivel" value={getExerciseLevelLabel(exercise.level)} />
+        <DetailRow
+          label="intensidad"
+          value={getExerciseIntensityLabel(exercise.intensity)}
+        />
+        <DetailRow
+          label="duracion media"
+          value={
+            exercise.averageDurationMinutes
+              ? `${exercise.averageDurationMinutes} min`
+              : null
+          }
+        />
+        <DetailRow label="objetivo principal" value={exercise.mainGoal} />
+        <DetailRow
+          label="tamano recomendado"
+          value={exercise.recommendedGroupSize}
+        />
+        <DetailRow label="espacio requerido" value={exercise.spaceRequired} />
+        <DetailRow
+          label="requiere pareja"
+          value={exercise.requiresPartner ? "si" : "no"}
+        />
+      </dl>
+
+      <dl className="space-y-3">
+        <DetailRow
+          label="descripcion detallada"
+          value={exercise.detailedDescription}
+        />
+        <DetailRow label="notas para coach" value={exercise.coachNotes} />
+        <DetailRow
+          label="tags"
+          value={
+            tags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <Badge key={tag} variant="outline">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            ) : null
+          }
+        />
+        <DetailRow
+          label="materiales"
+          value={
+            materials.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {materials.map((material) => (
+                  <Badge key={material} variant="outline">
+                    {material}
+                  </Badge>
+                ))}
+              </div>
+            ) : null
+          }
+        />
+        <DetailRow label="variantes" value={variants} />
+        <DetailRow label="compatibilidades" value={compatibilities} />
+      </dl>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Button
+          type="button"
+          variant="outline"
+          className="bg-transparent"
+          onClick={onClose}
+        >
+          cerrar
+        </Button>
+        <Button type="button" onClick={onEdit}>
+          <Pencil className="h-4 w-4" />
+          editar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="bg-transparent text-destructive hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-4 w-4" />
+          desactivar
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -573,11 +767,13 @@ function ExerciseForm({
 function ExerciseCard({
   exercise,
   isDeleting,
+  onViewDetail,
   onEdit,
   onDelete,
 }: {
   exercise: Exercise;
   isDeleting: boolean;
+  onViewDetail: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -680,7 +876,15 @@ function ExerciseCard({
           </div>
         ) : null}
 
-        <div className="mt-auto grid gap-2 sm:grid-cols-2">
+        <div className="mt-auto grid gap-2 sm:grid-cols-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="bg-transparent"
+            onClick={onViewDetail}
+          >
+            ver detalle
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -746,12 +950,19 @@ export function ExercisesContent() {
   const deleteExercise = useDeleteExercise(exercisesOrganizationId);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [detailExercise, setDetailExercise] = useState<Exercise | null>(null);
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
   const [form, setForm] = useState<ExerciseFormState>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
 
   const exercises = exercisesQuery.data ?? [];
   const isEditing = Boolean(editingExercise);
+  const hasActiveFilters =
+    searchTerm.trim().length > 0 ||
+    categoryFilter !== ALL_VALUE ||
+    levelFilter !== ALL_VALUE ||
+    intensityFilter !== ALL_VALUE ||
+    requiresPartnerFilter !== ALL_VALUE;
 
   if (!canManageExercises) {
     return (
@@ -783,6 +994,14 @@ export function ExercisesContent() {
     setEditingExercise(null);
     setForm(initialForm);
     setFormError(null);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter(ALL_VALUE);
+    setLevelFilter(ALL_VALUE);
+    setIntensityFilter(ALL_VALUE);
+    setRequiresPartnerFilter(ALL_VALUE);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -931,6 +1150,38 @@ export function ExercisesContent() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog
+        open={Boolean(detailExercise)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailExercise(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detailExercise?.name}</DialogTitle>
+            <DialogDescription>
+              informacion completa del ejercicio reutilizable.
+            </DialogDescription>
+          </DialogHeader>
+          {detailExercise ? (
+            <ExerciseDetail
+              exercise={detailExercise}
+              onClose={() => setDetailExercise(null)}
+              onEdit={() => {
+                openEditForm(detailExercise);
+                setDetailExercise(null);
+              }}
+              onDelete={() => {
+                setExerciseToDelete(detailExercise);
+                setDetailExercise(null);
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {!activeOrganizationId ? (
         <EmptyState
           title="selecciona una organizacion"
@@ -951,7 +1202,7 @@ export function ExercisesContent() {
               />
             </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger id="exercise-category-filter">
                   <SelectValue placeholder="categoria" />
@@ -1007,6 +1258,17 @@ export function ExercisesContent() {
                   <SelectItem value="false">sin pareja</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent"
+                disabled={!hasActiveFilters}
+                onClick={clearFilters}
+              >
+                <ListRestart className="h-4 w-4" />
+                limpiar filtros
+              </Button>
             </div>
           </section>
 
@@ -1054,6 +1316,7 @@ export function ExercisesContent() {
                       deleteExercise.isPending &&
                       deleteExercise.variables === exercise.id
                     }
+                    onViewDetail={() => setDetailExercise(exercise)}
                     onEdit={() => openEditForm(exercise)}
                     onDelete={() => setExerciseToDelete(exercise)}
                   />

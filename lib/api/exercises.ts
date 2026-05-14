@@ -48,6 +48,8 @@ export interface Exercise {
   materials?: string[] | string | null;
   equipment?: string[] | string | null;
   tags?: string[] | string | null;
+  variants?: unknown[] | Record<string, unknown> | string | null;
+  compatibilities?: unknown[] | Record<string, unknown> | string | null;
   isActive?: boolean | null;
   active?: boolean | null;
   createdAt?: string | Date | null;
@@ -107,6 +109,8 @@ export interface ExerciseInput {
   targetArea?: string;
   mediaId?: string;
   notes?: string;
+  exerciseId?: string;
+  category?: string;
 }
 
 export type UpdateExerciseInput = Partial<ExerciseInput>;
