@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   Target,
   Trash2,
 } from "lucide-react";
@@ -670,8 +671,8 @@ function ExerciseForm({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2">
+    <form onSubmit={onSubmit} className="space-y-6 md:space-y-5">
+      <div className="grid gap-5 md:grid-cols-2 md:gap-4">
         <div className="space-y-2">
           <Label htmlFor="exercise-name">nombre</Label>
           <Input
@@ -706,7 +707,7 @@ function ExerciseForm({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2 md:gap-4">
         <div className="space-y-2">
           <Label htmlFor="exercise-level">nivel</Label>
           <Select
@@ -762,7 +763,7 @@ function ExerciseForm({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-background/45 px-3 py-3">
+        <div className="flex min-h-11 items-center justify-between gap-4 rounded-md border border-border/70 bg-background/45 px-3 py-3">
           <Label htmlFor="exercise-partner" className="text-sm font-medium">
             requiere pareja
           </Label>
@@ -776,7 +777,7 @@ function ExerciseForm({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2 md:gap-4">
         <div className="space-y-2">
           <Label htmlFor="exercise-short-description">descripcion corta</Label>
           <Input
@@ -859,7 +860,7 @@ function ExerciseForm({
         </p>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 pt-1 sm:grid-cols-2">
         <Button
           type="button"
           variant="outline"
@@ -901,11 +902,11 @@ function ExerciseCard({
   return (
     <Card
       className={cn(
-        "h-full border-border/80 bg-card/70 p-5 shadow-md shadow-black/15 transition",
+        "h-full border-border/80 bg-card/70 p-4 shadow-md shadow-black/15 transition md:p-5",
         isInactive && "border-border/45 bg-card/45 opacity-70",
       )}
     >
-      <div className="flex h-full flex-col gap-5">
+      <div className="flex h-full flex-col gap-4 md:gap-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap gap-2">
@@ -947,14 +948,16 @@ function ExerciseCard({
           {getExerciseDescription(exercise)}
         </p>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
           <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Target className="h-3.5 w-3.5" />
-              nivel
+              <Clock className="h-3.5 w-3.5" />
+              duracion
             </div>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {getExerciseLevelLabel(exercise.level)}
+              {exercise.averageDurationMinutes
+                ? `${exercise.averageDurationMinutes} min`
+                : "-"}
             </p>
           </div>
           <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
@@ -969,10 +972,10 @@ function ExerciseCard({
         </div>
 
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-          {exercise.averageDurationMinutes ? (
+          {exercise.level ? (
             <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4" />
-              {exercise.averageDurationMinutes} min
+              <Target className="h-4 w-4" />
+              {getExerciseLevelLabel(exercise.level)}
             </span>
           ) : null}
           {exercise.mainGoal ? (
@@ -1063,6 +1066,7 @@ export function ExercisesContent() {
   const [intensityFilter, setIntensityFilter] = useState(ALL_VALUE);
   const [requiresPartnerFilter, setRequiresPartnerFilter] = useState(ALL_VALUE);
   const [sourceFilter, setSourceFilter] = useState(ALL_VALUE);
+  const [areMobileFiltersOpen, setAreMobileFiltersOpen] = useState(false);
   const debouncedSearchTerm = useDebouncedValue(searchTerm.trim());
   const filters = useMemo<ExerciseFilters>(
     () => ({
@@ -1382,7 +1386,41 @@ export function ExercisesContent() {
               />
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+            <div className="flex items-center justify-between gap-3 md:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 bg-transparent"
+                onClick={() =>
+                  setAreMobileFiltersOpen((currentValue) => !currentValue)
+                }
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                filtros
+                {hasActiveFilters ? (
+                  <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                    activos
+                  </span>
+                ) : null}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground"
+                disabled={!hasActiveFilters}
+                onClick={clearFilters}
+              >
+                <ListRestart className="h-4 w-4" />
+                limpiar
+              </Button>
+            </div>
+
+            <div
+              className={cn(
+                "grid gap-3 md:grid md:grid-cols-[repeat(5,minmax(0,1fr))_auto]",
+                areMobileFiltersOpen ? "grid" : "hidden",
+              )}
+            >
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger id="exercise-category-filter">
                   <SelectValue placeholder="categoria" />

@@ -272,7 +272,7 @@ export function BlocksContent() {
           <DialogTrigger asChild>
             <AnimatedButton
               size="lg"
-              className="gap-2"
+              className="w-full gap-2 md:w-auto"
               disabled={!activeOrganizationId}
             >
               <Plus className="h-5 w-5" />
@@ -508,7 +508,7 @@ export function BlocksContent() {
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                           <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <Clock className="h-3.5 w-3.5" />

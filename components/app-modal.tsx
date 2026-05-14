@@ -1,40 +1,40 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { X } from "lucide-react"
-import { useBoxPlannerStore } from "@/lib/store"
-import { Button } from "@/components/ui/button"
-import { useAppTranslation } from "@/hooks/use-app-translation"
+import { useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
+import { useBoxPlannerStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
+import { useAppTranslation } from "@/hooks/use-app-translation";
 
 interface AppModalProps {
-  children: React.ReactNode
-  title?: string
+  children: React.ReactNode;
+  title?: string;
 }
 
 export function AppModal({ children, title }: AppModalProps) {
-  const { isModalOpen, closeModal } = useBoxPlannerStore()
-  const { t } = useAppTranslation()
+  const { isModalOpen, closeModal } = useBoxPlannerStore();
+  const { t } = useAppTranslation();
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isModalOpen) {
-        closeModal()
+        closeModal();
       }
-    }
+    };
 
     if (isModalOpen) {
-      document.addEventListener("keydown", handleEscape)
-      document.body.style.overflow = "hidden"
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
     }
 
     return () => {
-      document.removeEventListener("keydown", handleEscape)
-      document.body.style.overflow = "unset"
-    }
-  }, [isModalOpen, closeModal])
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "unset";
+    };
+  }, [isModalOpen, closeModal]);
 
   return (
     <AnimatePresence>
@@ -59,7 +59,7 @@ export function AppModal({ children, title }: AppModalProps) {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-lg rounded-t-2xl bg-card p-6 shadow-2xl md:rounded-2xl md:p-8"
+              className="relative max-h-[94dvh] w-full overflow-y-auto rounded-t-2xl bg-card p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl md:max-w-lg md:rounded-2xl md:p-8"
               role="dialog"
               aria-modal="true"
               aria-labelledby={title ? "modal-title" : undefined}
@@ -77,7 +77,10 @@ export function AppModal({ children, title }: AppModalProps) {
 
               {/* Title */}
               {title && (
-                <h2 id="modal-title" className="mb-6 text-2xl font-bold text-foreground">
+                <h2
+                  id="modal-title"
+                  className="mb-6 text-2xl font-bold text-foreground"
+                >
                   {title}
                 </h2>
               )}
@@ -89,5 +92,5 @@ export function AppModal({ children, title }: AppModalProps) {
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }

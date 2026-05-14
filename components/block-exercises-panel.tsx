@@ -2,7 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Activity, Clock, Library, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Activity,
+  Clock,
+  Library,
+  ListRestart,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -159,6 +168,11 @@ export function BlockExercisesPanel({
   const [libraryLevel, setLibraryLevel] = useState(ALL_VALUE);
   const [libraryIntensity, setLibraryIntensity] = useState(ALL_VALUE);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [areLibraryFiltersOpen, setAreLibraryFiltersOpen] = useState(false);
+  const hasLibraryFilters =
+    libraryCategory !== ALL_VALUE ||
+    libraryLevel !== ALL_VALUE ||
+    libraryIntensity !== ALL_VALUE;
 
   const libraryFilters = useMemo<ExerciseFilters>(
     () => ({
@@ -291,7 +305,39 @@ export function BlockExercisesPanel({
             />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="flex items-center justify-between gap-2 md:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={() =>
+                setAreLibraryFiltersOpen((currentValue) => !currentValue)
+              }
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              filtros
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-muted-foreground"
+              disabled={!hasLibraryFilters}
+              onClick={() => {
+                setLibraryCategory(ALL_VALUE);
+                setLibraryLevel(ALL_VALUE);
+                setLibraryIntensity(ALL_VALUE);
+              }}
+            >
+              <ListRestart className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div
+            className={[
+              "grid gap-3 md:grid md:grid-cols-3",
+              areLibraryFiltersOpen ? "grid" : "hidden",
+            ].join(" ")}
+          >
             <Select value={libraryCategory} onValueChange={setLibraryCategory}>
               <SelectTrigger>
                 <SelectValue placeholder="categoria" />
@@ -364,7 +410,7 @@ export function BlockExercisesPanel({
         ) : null}
 
         {!libraryQuery.isLoading && !libraryQuery.error ? (
-          <div className="space-y-3">
+          <div className="max-h-[48dvh] space-y-3 overflow-y-auto pr-1 md:max-h-none md:overflow-visible md:pr-0">
             {(libraryQuery.data ?? []).slice(0, 6).map((exercise) => (
               <div
                 key={exercise.id}
@@ -392,7 +438,7 @@ export function BlockExercisesPanel({
                 <Button
                   type="button"
                   size="sm"
-                  className="shrink-0 self-start"
+                  className="w-full shrink-0 sm:w-auto sm:self-start"
                   disabled={createExercise.isPending}
                   onClick={() => void handleAddLibraryExercise(exercise)}
                 >
@@ -549,7 +595,7 @@ export function BlockExercisesPanel({
             {exercises.map((exercise) => (
               <div
                 key={exercise.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm"
+                className="flex items-start justify-between gap-3 rounded-lg border border-border/80 bg-card/60 p-3 shadow-sm sm:p-4"
               >
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">

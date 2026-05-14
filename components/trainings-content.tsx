@@ -119,7 +119,7 @@ export function TrainingsContent() {
 
         <AnimatedButton
           size="lg"
-          className="gap-2"
+          className="w-full gap-2 md:w-auto"
           onClick={() => setIsCreateOpen(true)}
           disabled={!activeOrganizationId}
         >
@@ -223,7 +223,7 @@ export function TrainingsContent() {
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                         <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Clock className="h-3.5 w-3.5" />

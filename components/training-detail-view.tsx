@@ -14,7 +14,11 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/data-state";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui/data-state";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -198,7 +202,7 @@ function TrainingSummary({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4">
         <StatItem
           icon={Clock}
           label="duracion"
@@ -210,7 +214,11 @@ function TrainingSummary({
           label="tipo"
           value={formatTrainingType(training.trainingType)}
         />
-        <StatItem icon={Dumbbell} label="nivel" value={formatLevel(training.level)} />
+        <StatItem
+          icon={Dumbbell}
+          label="nivel"
+          value={formatLevel(training.level)}
+        />
       </div>
     </section>
   );
