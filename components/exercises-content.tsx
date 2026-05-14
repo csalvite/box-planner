@@ -67,18 +67,25 @@ import { cn } from "@/lib/utils";
 const ALL_VALUE = "all";
 
 const categoryOptions: Array<{ value: ExerciseCategory; label: string }> = [
-  { value: "WARM_UP", label: "Calentamiento" },
+  { value: "WARMUP", label: "Calentamiento" },
   { value: "TECHNIQUE", label: "Tecnica" },
+  { value: "BAG", label: "Saco" },
+  { value: "SHADOW", label: "Sombra" },
+  { value: "PARTNER", label: "Parejas" },
+  { value: "SPARRING", label: "Sparring" },
+  { value: "HIIT", label: "HIIT" },
   { value: "CARDIO", label: "Cardio" },
   { value: "STRENGTH", label: "Fuerza" },
-  { value: "SPARRING", label: "Sparring" },
+  { value: "CORE", label: "Core" },
   { value: "COOLDOWN", label: "Vuelta a la calma" },
+  { value: "OTHER", label: "Otro" },
 ];
 
 const levelOptions: Array<{ value: ExerciseLevel; label: string }> = [
   { value: "BEGINNER", label: "Principiante" },
   { value: "INTERMEDIATE", label: "Intermedio" },
   { value: "ADVANCED", label: "Avanzado" },
+  { value: "ALL_LEVELS", label: "Todos los niveles" },
 ];
 
 const intensityOptions: Array<{ value: ExerciseIntensity; label: string }> = [
@@ -88,12 +95,65 @@ const intensityOptions: Array<{ value: ExerciseIntensity; label: string }> = [
 ];
 
 const categoryColors: Record<string, string> = {
-  WARM_UP: "bg-chart-2/20 text-chart-2 ring-chart-2/20",
+  WARMUP: "bg-chart-2/20 text-chart-2 ring-chart-2/20",
   TECHNIQUE: "bg-primary/15 text-primary ring-primary/20",
+  BAG: "bg-chart-4/20 text-chart-4 ring-chart-4/20",
+  SHADOW: "bg-muted/50 text-muted-foreground ring-border/80",
+  PARTNER: "bg-chart-3/20 text-chart-3 ring-chart-3/20",
+  SPARRING: "bg-destructive/10 text-destructive ring-destructive/20",
+  HIIT: "bg-chart-5/20 text-chart-5 ring-chart-5/20",
   CARDIO: "bg-chart-5/20 text-chart-5 ring-chart-5/20",
   STRENGTH: "bg-chart-4/20 text-chart-4 ring-chart-4/20",
-  SPARRING: "bg-destructive/10 text-destructive ring-destructive/20",
+  CORE: "bg-primary/10 text-primary ring-primary/15",
   COOLDOWN: "bg-chart-3/20 text-chart-3 ring-chart-3/20",
+  OTHER: "bg-secondary/70 text-secondary-foreground ring-white/10",
+};
+
+const categoryAliases: Record<string, ExerciseCategory> = {
+  WARM_UP: "WARMUP",
+  warm_up: "WARMUP",
+  warmup: "WARMUP",
+  calentamiento: "WARMUP",
+  tecnica: "TECHNIQUE",
+  technique: "TECHNIQUE",
+  saco: "BAG",
+  bag: "BAG",
+  sombra: "SHADOW",
+  shadow: "SHADOW",
+  parejas: "PARTNER",
+  pareja: "PARTNER",
+  partner: "PARTNER",
+  sparring: "SPARRING",
+  hiit: "HIIT",
+  cardio: "CARDIO",
+  fuerza: "STRENGTH",
+  strength: "STRENGTH",
+  core: "CORE",
+  cooldown: "COOLDOWN",
+  cool_down: "COOLDOWN",
+  "vuelta a la calma": "COOLDOWN",
+  otro: "OTHER",
+  other: "OTHER",
+};
+
+const levelAliases: Record<string, ExerciseLevel> = {
+  beginner: "BEGINNER",
+  principiante: "BEGINNER",
+  intermediate: "INTERMEDIATE",
+  intermedio: "INTERMEDIATE",
+  advanced: "ADVANCED",
+  avanzado: "ADVANCED",
+  all_levels: "ALL_LEVELS",
+  "todos los niveles": "ALL_LEVELS",
+};
+
+const intensityAliases: Record<string, ExerciseIntensity> = {
+  low: "LOW",
+  baja: "LOW",
+  medium: "MEDIUM",
+  media: "MEDIUM",
+  high: "HIGH",
+  alta: "HIGH",
 };
 
 interface ExerciseFormState {
@@ -151,6 +211,68 @@ function getOptionLabel(
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
+function normalizeOptionValue<T extends string>(
+  value: unknown,
+  options: Array<{ value: T; label: string }>,
+  aliases: Record<string, T>,
+  fallback: T,
+) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return fallback;
+  }
+
+  if (options.some((option) => option.value === trimmed)) {
+    return trimmed as T;
+  }
+
+  const aliasKey = trimmed
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return aliases[aliasKey] ?? fallback;
+}
+
+function normalizeExerciseCategory(value: unknown) {
+  return normalizeOptionValue(
+    value,
+    categoryOptions,
+    categoryAliases,
+    "TECHNIQUE",
+  );
+}
+
+function normalizeExerciseLevel(value: unknown) {
+  return normalizeOptionValue(value, levelOptions, levelAliases, "BEGINNER");
+}
+
+function normalizeExerciseIntensity(value: unknown) {
+  return normalizeOptionValue(
+    value,
+    intensityOptions,
+    intensityAliases,
+    "MEDIUM",
+  );
+}
+
+function getExerciseCategoryLabel(value?: string | null) {
+  return getOptionLabel(categoryOptions, normalizeExerciseCategory(value));
+}
+
+function getExerciseLevelLabel(value?: string | null) {
+  return getOptionLabel(levelOptions, normalizeExerciseLevel(value));
+}
+
+function getExerciseIntensityLabel(value?: string | null) {
+  return getOptionLabel(intensityOptions, normalizeExerciseIntensity(value));
+}
+
 function listFromValue(value: unknown) {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === "string");
@@ -200,9 +322,9 @@ function optionalNumber(value: string) {
 function toPayload(form: ExerciseFormState): CreateExercisePayload {
   return {
     name: form.name.trim(),
-    category: form.category,
-    level: form.level,
-    intensity: form.intensity,
+    category: normalizeExerciseCategory(form.category),
+    level: normalizeExerciseLevel(form.level),
+    intensity: normalizeExerciseIntensity(form.intensity),
     shortDescription: form.shortDescription.trim() || undefined,
     detailedDescription: form.detailedDescription.trim() || undefined,
     mainGoal: form.mainGoal.trim() || undefined,
@@ -219,13 +341,13 @@ function formFromExercise(exercise: Exercise): ExerciseFormState {
     name: exercise.name,
     shortDescription: exercise.shortDescription ?? exercise.description ?? "",
     detailedDescription: exercise.detailedDescription ?? "",
-    category: exercise.category ?? "TECHNIQUE",
+    category: normalizeExerciseCategory(exercise.category),
     mainGoal: exercise.mainGoal ?? "",
-    level: exercise.level ?? "BEGINNER",
+    level: normalizeExerciseLevel(exercise.level),
     averageDurationMinutes: exercise.averageDurationMinutes
       ? String(exercise.averageDurationMinutes)
       : "",
-    intensity: exercise.intensity ?? "MEDIUM",
+    intensity: normalizeExerciseIntensity(exercise.intensity),
     recommendedGroupSize: exercise.recommendedGroupSize ?? "",
     spaceRequired: exercise.spaceRequired ?? "",
     requiresPartner: Boolean(exercise.requiresPartner),
@@ -461,6 +583,7 @@ function ExerciseCard({
 }) {
   const badges = getExerciseBadges(exercise);
   const isInactive = exercise.isActive === false || exercise.active === false;
+  const category = normalizeExerciseCategory(exercise.category);
 
   return (
     <Card
@@ -476,11 +599,11 @@ function ExerciseCard({
               <span
                 className={cn(
                   "rounded-full px-3 py-1 text-xs font-medium ring-1",
-                  categoryColors[exercise.category] ??
+                  categoryColors[category] ??
                     "bg-secondary/70 text-secondary-foreground ring-white/10",
                 )}
               >
-                {getOptionLabel(categoryOptions, exercise.category)}
+                {getExerciseCategoryLabel(category)}
               </span>
               {exercise.requiresPartner ? (
                 <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border/80">
@@ -508,7 +631,7 @@ function ExerciseCard({
               nivel
             </div>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {getOptionLabel(levelOptions, exercise.level)}
+              {getExerciseLevelLabel(exercise.level)}
             </p>
           </div>
           <div className="rounded-md border border-border/70 bg-background/45 px-3 py-2">
@@ -517,7 +640,7 @@ function ExerciseCard({
               intensidad
             </div>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {getOptionLabel(intensityOptions, exercise.intensity)}
+              {getExerciseIntensityLabel(exercise.intensity)}
             </p>
           </div>
         </div>
@@ -597,13 +720,13 @@ export function ExercisesContent() {
     () => ({
       ...(debouncedSearchTerm ? { search: debouncedSearchTerm } : {}),
       ...(categoryFilter !== ALL_VALUE
-        ? { category: categoryFilter as ExerciseCategory }
+        ? { category: normalizeExerciseCategory(categoryFilter) }
         : {}),
       ...(levelFilter !== ALL_VALUE
-        ? { level: levelFilter as ExerciseLevel }
+        ? { level: normalizeExerciseLevel(levelFilter) }
         : {}),
       ...(intensityFilter !== ALL_VALUE
-        ? { intensity: intensityFilter as ExerciseIntensity }
+        ? { intensity: normalizeExerciseIntensity(intensityFilter) }
         : {}),
       ...(requiresPartnerFilter !== ALL_VALUE
         ? { requiresPartner: requiresPartnerFilter === "true" }

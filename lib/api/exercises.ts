@@ -1,18 +1,25 @@
 import { apiFetch } from "@/lib/api/client";
 
 export type ExerciseCategory =
-  | "WARM_UP"
+  | "WARMUP"
   | "TECHNIQUE"
+  | "BAG"
+  | "SHADOW"
+  | "PARTNER"
+  | "SPARRING"
+  | "HIIT"
   | "CARDIO"
   | "STRENGTH"
+  | "CORE"
   | "COOLDOWN"
-  | "SPARRING"
+  | "OTHER"
   | (string & {});
 
 export type ExerciseLevel =
   | "BEGINNER"
   | "INTERMEDIATE"
   | "ADVANCED"
+  | "ALL_LEVELS"
   | (string & {});
 
 export type ExerciseIntensity =
@@ -141,6 +148,150 @@ type ExerciseResponse =
       data?: BlockExercise;
     };
 
+const exerciseCategories = [
+  "WARMUP",
+  "TECHNIQUE",
+  "BAG",
+  "SHADOW",
+  "PARTNER",
+  "SPARRING",
+  "HIIT",
+  "CARDIO",
+  "STRENGTH",
+  "CORE",
+  "COOLDOWN",
+  "OTHER",
+] as const;
+
+const exerciseLevels = [
+  "BEGINNER",
+  "INTERMEDIATE",
+  "ADVANCED",
+  "ALL_LEVELS",
+] as const;
+
+const exerciseIntensities = ["LOW", "MEDIUM", "HIGH"] as const;
+
+const categoryAliases: Record<string, ExerciseCategory> = {
+  WARM_UP: "WARMUP",
+  warm_up: "WARMUP",
+  warmup: "WARMUP",
+  calentamiento: "WARMUP",
+  tecnica: "TECHNIQUE",
+  technique: "TECHNIQUE",
+  saco: "BAG",
+  bag: "BAG",
+  sombra: "SHADOW",
+  shadow: "SHADOW",
+  parejas: "PARTNER",
+  pareja: "PARTNER",
+  partner: "PARTNER",
+  sparring: "SPARRING",
+  hiit: "HIIT",
+  cardio: "CARDIO",
+  fuerza: "STRENGTH",
+  strength: "STRENGTH",
+  core: "CORE",
+  cooldown: "COOLDOWN",
+  cool_down: "COOLDOWN",
+  "vuelta a la calma": "COOLDOWN",
+  otro: "OTHER",
+  other: "OTHER",
+};
+
+const levelAliases: Record<string, ExerciseLevel> = {
+  beginner: "BEGINNER",
+  principiante: "BEGINNER",
+  intermediate: "INTERMEDIATE",
+  intermedio: "INTERMEDIATE",
+  advanced: "ADVANCED",
+  avanzado: "ADVANCED",
+  all_levels: "ALL_LEVELS",
+  "todos los niveles": "ALL_LEVELS",
+};
+
+const intensityAliases: Record<string, ExerciseIntensity> = {
+  low: "LOW",
+  baja: "LOW",
+  medium: "MEDIUM",
+  media: "MEDIUM",
+  high: "HIGH",
+  alta: "HIGH",
+};
+
+function normalizeEnumKey(value: string) {
+  return value
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function normalizeEnumValue<T extends string>(
+  value: T | string | undefined,
+  values: readonly T[],
+  aliases: Record<string, T>,
+  fallback: T,
+) {
+  if (!value) {
+    return fallback;
+  }
+
+  if (values.includes(value as T)) {
+    return value as T;
+  }
+
+  return aliases[normalizeEnumKey(value)] ?? fallback;
+}
+
+function normalizeExerciseCategory(value?: ExerciseCategory) {
+  return normalizeEnumValue(
+    value,
+    exerciseCategories,
+    categoryAliases,
+    "TECHNIQUE",
+  );
+}
+
+function normalizeExerciseLevel(value?: ExerciseLevel) {
+  return normalizeEnumValue(value, exerciseLevels, levelAliases, "BEGINNER");
+}
+
+function normalizeExerciseIntensity(value?: ExerciseIntensity) {
+  return normalizeEnumValue(
+    value,
+    exerciseIntensities,
+    intensityAliases,
+    "MEDIUM",
+  );
+}
+
+function toExercisePayload(input: CreateExercisePayload): CreateExercisePayload {
+  return {
+    ...input,
+    category: normalizeExerciseCategory(input.category),
+    level: normalizeExerciseLevel(input.level),
+    intensity: normalizeExerciseIntensity(input.intensity),
+  };
+}
+
+function toUpdateExercisePayload(
+  input: UpdateExercisePayload,
+): UpdateExercisePayload {
+  return {
+    ...input,
+    ...(input.category !== undefined
+      ? { category: normalizeExerciseCategory(input.category) }
+      : {}),
+    ...(input.level !== undefined
+      ? { level: normalizeExerciseLevel(input.level) }
+      : {}),
+    ...(input.intensity !== undefined
+      ? { intensity: normalizeExerciseIntensity(input.intensity) }
+      : {}),
+  };
+}
+
 function buildExercisesPath(filters?: ExerciseFilters) {
   const params = new URLSearchParams();
 
@@ -156,15 +307,15 @@ function buildExercisesPath(filters?: ExerciseFilters) {
   }
 
   if (filters?.category) {
-    params.set("category", filters.category);
+    params.set("category", normalizeExerciseCategory(filters.category));
   }
 
   if (filters?.level) {
-    params.set("level", filters.level);
+    params.set("level", normalizeExerciseLevel(filters.level));
   }
 
   if (filters?.intensity) {
-    params.set("intensity", filters.intensity);
+    params.set("intensity", normalizeExerciseIntensity(filters.intensity));
   }
 
   if (filters?.requiresPartner !== undefined) {
@@ -377,7 +528,7 @@ export async function createExercise(
     accessToken,
     headers: getOrganizationHeaders(organizationId),
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify(toExercisePayload(input)),
   });
 
   return unwrapExerciseLibraryItem(response);
@@ -395,7 +546,7 @@ export async function updateExercise(
       accessToken,
       headers: getOrganizationHeaders(organizationId),
       method: "PATCH",
-      body: JSON.stringify(input),
+      body: JSON.stringify(toUpdateExercisePayload(input)),
     },
   );
 
