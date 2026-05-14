@@ -7,14 +7,23 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import {
+  createBlockExercise,
   createExercise,
+  deleteBlockExercise,
   deleteExercise,
   getBlockExercises,
+  getExercise,
+  getExercises,
   reorderExercises,
+  updateBlockExercise,
   updateExercise,
   type BlockExercise,
+  type CreateExercisePayload,
+  type Exercise,
+  type ExerciseFilters,
   type ExerciseInput,
   type ReorderExerciseInput,
+  type UpdateExercisePayload,
   type UpdateExerciseInput,
 } from "@/lib/api/exercises";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -25,6 +34,25 @@ export const blockExercisesQueryKey = (
   organizationId?: string | null,
   blockId?: string | null,
 ) => ["block-exercises", organizationId, blockId] as const;
+
+export const exercisesBaseQueryKey = (organizationId?: string | null) =>
+  ["exercises", organizationId] as const;
+
+export const exercisesQueryKey = (
+  organizationId?: string | null,
+  filters?: ExerciseFilters,
+) =>
+  [
+    ...exercisesBaseQueryKey(organizationId),
+    filters?.search ?? "",
+    filters?.name ?? "",
+    filters?.category ?? "all",
+    filters?.level ?? "all",
+    filters?.intensity ?? "all",
+    filters?.requiresPartner === undefined
+      ? "all"
+      : String(filters.requiresPartner),
+  ] as const;
 
 function sortExercises(exercises: BlockExercise[]) {
   return [...exercises].sort((firstExercise, secondExercise) => {
@@ -119,7 +147,109 @@ export function useBlockExercises(
   });
 }
 
-export function useCreateExercise(
+export function useExercise(
+  organizationId?: string | null,
+  exerciseId?: string | null,
+) {
+  const { accessToken } = useAuth();
+
+  return useQuery({
+    queryKey: [...exercisesBaseQueryKey(organizationId), exerciseId],
+    queryFn: () =>
+      getExercise(exerciseId as string, accessToken, organizationId),
+    enabled: Boolean(accessToken && organizationId && exerciseId),
+  });
+}
+
+export function useExercises(
+  organizationId?: string | null,
+  filters?: ExerciseFilters,
+) {
+  const { accessToken } = useAuth();
+
+  return useQuery({
+    queryKey: exercisesQueryKey(organizationId, filters),
+    queryFn: () => getExercises(filters, accessToken, organizationId),
+    enabled: Boolean(accessToken && organizationId),
+  });
+}
+
+export function useCreateExercise(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateExercisePayload) =>
+      createExercise(input, accessToken, organizationId),
+    onSuccess: async (exercise) => {
+      queryClient.setQueriesData<Exercise[]>(
+        { queryKey: exercisesBaseQueryKey(organizationId) },
+        (exercises = []) => [
+          exercise,
+          ...exercises.filter(
+            (currentExercise) => currentExercise.id !== exercise.id,
+          ),
+        ],
+      );
+      await queryClient.invalidateQueries({
+        queryKey: exercisesBaseQueryKey(organizationId),
+      });
+    },
+  });
+}
+
+export function useUpdateExercise(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      exerciseId,
+      input,
+    }: {
+      exerciseId: string;
+      input: UpdateExercisePayload;
+    }) => updateExercise(exerciseId, input, accessToken, organizationId),
+    onSuccess: async (exercise) => {
+      queryClient.setQueriesData<Exercise[]>(
+        { queryKey: exercisesBaseQueryKey(organizationId) },
+        (exercises = []) =>
+          exercises.map((currentExercise) =>
+            currentExercise.id === exercise.id ? exercise : currentExercise,
+          ),
+      );
+      queryClient.setQueryData<Exercise>(
+        [...exercisesBaseQueryKey(organizationId), exercise.id],
+        exercise,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: exercisesBaseQueryKey(organizationId),
+      });
+    },
+  });
+}
+
+export function useDeleteExercise(organizationId?: string | null) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (exerciseId: string) =>
+      deleteExercise(exerciseId, accessToken, organizationId),
+    onSuccess: async (_response, exerciseId) => {
+      queryClient.setQueriesData<Exercise[]>(
+        { queryKey: exercisesBaseQueryKey(organizationId) },
+        (exercises = []) =>
+          exercises.filter((exercise) => exercise.id !== exerciseId),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: exercisesBaseQueryKey(organizationId),
+      });
+    },
+  });
+}
+
+export function useCreateBlockExercise(
   organizationId?: string | null,
   blockId?: string | null,
 ) {
@@ -128,7 +258,7 @@ export function useCreateExercise(
 
   return useMutation({
     mutationFn: (input: ExerciseInput) =>
-      createExercise(
+      createBlockExercise(
         organizationId as string,
         blockId as string,
         input,
@@ -144,7 +274,7 @@ export function useCreateExercise(
   });
 }
 
-export function useUpdateExercise(
+export function useUpdateBlockExercise(
   organizationId?: string | null,
   blockId?: string | null,
 ) {
@@ -159,7 +289,7 @@ export function useUpdateExercise(
       exerciseId: string;
       input: UpdateExerciseInput;
     }) =>
-      updateExercise(
+      updateBlockExercise(
         organizationId as string,
         blockId as string,
         exerciseId,
@@ -177,7 +307,7 @@ export function useUpdateExercise(
   });
 }
 
-export function useDeleteExercise(
+export function useDeleteBlockExercise(
   organizationId?: string | null,
   blockId?: string | null,
 ) {
@@ -186,7 +316,7 @@ export function useDeleteExercise(
 
   return useMutation({
     mutationFn: (exerciseId: string) =>
-      deleteExercise(
+      deleteBlockExercise(
         organizationId as string,
         blockId as string,
         exerciseId,

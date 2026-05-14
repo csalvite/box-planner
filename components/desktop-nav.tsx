@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  Activity,
   CalendarDays,
   Dumbbell,
   Home,
@@ -28,6 +29,12 @@ const navItems = [
     staffOnly: true,
   },
   { href: "/trainings", labelKey: "nav.trainings", icon: Dumbbell, staffOnly: true },
+  {
+    href: "/exercises",
+    labelKey: "nav.exercises",
+    icon: Activity,
+    staffOnly: true,
+  },
   {
     href: "/members",
     labelKey: "nav.members",

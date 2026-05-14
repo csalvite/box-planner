@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useBlockExercises,
-  useCreateExercise,
-  useDeleteExercise,
+  useCreateBlockExercise,
+  useDeleteBlockExercise,
 } from "@/hooks/use-exercises";
 
 interface BlockExercisesPanelProps {
@@ -59,8 +59,8 @@ export function BlockExercisesPanel({
   blockId,
 }: BlockExercisesPanelProps) {
   const exercisesQuery = useBlockExercises(organizationId, blockId);
-  const createExercise = useCreateExercise(organizationId, blockId);
-  const deleteExercise = useDeleteExercise(organizationId, blockId);
+  const createExercise = useCreateBlockExercise(organizationId, blockId);
+  const deleteExercise = useDeleteBlockExercise(organizationId, blockId);
   const [form, setForm] = useState<ExerciseFormState>(initialExerciseForm);
   const [formError, setFormError] = useState<string | null>(null);
 
