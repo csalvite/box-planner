@@ -58,6 +58,9 @@ export interface ClassSessionSection {
   id: string;
   classSessionId?: string;
   name: string;
+  objective?: string | null;
+  estimatedDurationMinutes?: number | null;
+  // Legacy response fields kept only for reading older data.
   goal?: string | null;
   notes?: string | null;
   durationMinutes?: number | null;
@@ -105,10 +108,9 @@ export type UpdateClassSessionInput = Partial<
 
 export interface ClassSessionSectionInput {
   name: string;
-  goal?: string | null;
+  objective?: string | null;
   notes?: string | null;
-  durationMinutes?: number | null;
-  orderIndex?: number;
+  estimatedDurationMinutes?: number | null;
 }
 
 export type UpdateClassSessionSectionInput = Partial<ClassSessionSectionInput>;
@@ -326,6 +328,7 @@ function normalizeClassSessionSection(
 ): ClassSessionSection {
   return {
     ...section,
+    estimatedDurationMinutes: optionalNumber(section.estimatedDurationMinutes),
     durationMinutes: optionalNumber(section.durationMinutes),
     durationSec: optionalNumber(section.durationSec),
     orderIndex: optionalNumber(section.orderIndex) ?? 0,

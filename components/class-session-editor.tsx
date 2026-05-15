@@ -324,11 +324,14 @@ function formatClassDate(value?: string | Date | null) {
 function sectionToDraft(section: ClassSessionSection): SectionDraft {
   return {
     name: section.name,
-    goal: section.goal ?? "",
+    goal: section.objective ?? section.goal ?? "",
     durationMinutes:
-      section.durationMinutes !== undefined && section.durationMinutes !== null
-        ? String(section.durationMinutes)
-        : secondsToMinutes(section.durationSec),
+      section.estimatedDurationMinutes !== undefined &&
+      section.estimatedDurationMinutes !== null
+        ? String(section.estimatedDurationMinutes)
+        : section.durationMinutes !== undefined && section.durationMinutes !== null
+          ? String(section.durationMinutes)
+          : secondsToMinutes(section.durationSec),
     notes: section.notes ?? "",
   };
 }
@@ -360,7 +363,25 @@ function summarizeExercise(exercise: ClassSessionSectionExercise) {
 }
 
 function getExerciseSourceId(exercise: ClassSessionSectionExercise) {
-  return exercise.exerciseId ?? exercise.libraryExerciseId ?? undefined;
+  return (
+    exercise.exerciseId ??
+    exercise.libraryExerciseId ??
+    exercise.libraryExercise?.id ??
+    undefined
+  );
+}
+
+function isLibraryExerciseAddedToSection(
+  section: ClassSessionSection | undefined,
+  exercise: Exercise,
+) {
+  if (!section) {
+    return false;
+  }
+
+  return (section.exercises ?? []).some(
+    (sectionExercise) => getExerciseSourceId(sectionExercise) === exercise.id,
+  );
 }
 
 function getSectionError(error: unknown) {
@@ -611,7 +632,6 @@ export function ClassSessionEditor({
       classSessionId: session.id,
       input: {
         name,
-        orderIndex: sections.length,
       },
     });
 
@@ -641,9 +661,10 @@ export function ClassSessionEditor({
       sectionId: section.id,
       input: {
         name: draft.name.trim(),
-        goal: draft.goal.trim() || null,
+        objective: draft.goal.trim() || null,
         notes: draft.notes.trim() || null,
-        durationMinutes: optionalNumber(draft.durationMinutes) ?? null,
+        estimatedDurationMinutes:
+          optionalNumber(draft.durationMinutes) ?? null,
       },
     });
 
@@ -1519,68 +1540,86 @@ export function ClassSessionEditor({
 
               {!libraryQuery.isLoading && !libraryQuery.error ? (
                 <div className="grid min-w-0 gap-3 sm:grid-cols-1 xl:grid-cols-2">
-                  {(libraryQuery.data ?? []).map((exercise) => (
-                    <div
-                      key={exercise.id}
-                      className="grid min-w-0 gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm"
-                    >
-                      <div className="min-w-0 space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline">
-                            {getOptionLabel(categoryOptions, exercise.category)}
-                          </Badge>
-                          <Badge variant="outline">
-                            {getOptionLabel(
-                              intensityOptions,
-                              exercise.intensity,
-                            )}
-                          </Badge>
-                          <Badge variant="secondary">
-                            {getExerciseSourceLabel(exercise)}
-                          </Badge>
+                  {(libraryQuery.data ?? []).map((exercise) => {
+                    const isAlreadyAdded = isLibraryExerciseAddedToSection(
+                      selectedSection,
+                      exercise,
+                    );
+
+                    return (
+                      <div
+                        key={exercise.id}
+                        className={cn(
+                          "grid min-w-0 gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm",
+                          isAlreadyAdded && "opacity-70",
+                        )}
+                      >
+                        <div className="min-w-0 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">
+                              {getOptionLabel(
+                                categoryOptions,
+                                exercise.category,
+                              )}
+                            </Badge>
+                            <Badge variant="outline">
+                              {getOptionLabel(
+                                intensityOptions,
+                                exercise.intensity,
+                              )}
+                            </Badge>
+                            <Badge variant="secondary">
+                              {getExerciseSourceLabel(exercise)}
+                            </Badge>
+                            {isAlreadyAdded ? (
+                              <Badge variant="secondary">ya añadido</Badge>
+                            ) : null}
+                          </div>
+
+                          <div className="min-w-0">
+                            <h4 className="truncate text-base font-semibold text-foreground">
+                              {exercise.name}
+                            </h4>
+                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                              {getExerciseDescription(exercise) ||
+                                "sin descripcion"}
+                            </p>
+                          </div>
+
+                          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Dumbbell className="h-3.5 w-3.5" />
+                              {getOptionLabel(levelOptions, exercise.level)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" />
+                              {exercise.averageDurationMinutes
+                                ? `${exercise.averageDurationMinutes} min`
+                                : "sin duracion"}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="min-w-0">
-                          <h4 className="truncate text-base font-semibold text-foreground">
-                            {exercise.name}
-                          </h4>
-                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
-                            {getExerciseDescription(exercise) ||
-                              "sin descripcion"}
-                          </p>
-                        </div>
-
-                        <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Dumbbell className="h-3.5 w-3.5" />
-                            {getOptionLabel(levelOptions, exercise.level)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            {exercise.averageDurationMinutes
-                              ? `${exercise.averageDurationMinutes} min`
-                              : "sin duracion"}
-                          </span>
+                        <div className="flex min-w-0 justify-end">
+                          <Button
+                            type="button"
+                            className="w-full justify-center sm:w-auto"
+                            disabled={
+                              isAlreadyAdded ||
+                              !selectedSectionId ||
+                              addSectionExercise.isPending
+                            }
+                            onClick={() =>
+                              void handleAddLibraryExercise(exercise)
+                            }
+                          >
+                            <Plus className="h-4 w-4" />
+                            {isAlreadyAdded ? "añadido" : "anadir"}
+                          </Button>
                         </div>
                       </div>
-
-                      <div className="flex min-w-0 justify-end">
-                        <Button
-                          type="button"
-                          className="w-full justify-center sm:w-auto"
-                          disabled={
-                            !selectedSectionId || addSectionExercise.isPending
-                          }
-                          onClick={() =>
-                            void handleAddLibraryExercise(exercise)
-                          }
-                        >
-                          <Plus className="h-4 w-4" />
-                          anadir
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {(libraryQuery.data ?? []).length === 0 ? (
                     <EmptyState
