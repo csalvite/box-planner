@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -495,6 +495,10 @@ export function ClassSessionEditor({
     useState<ManualExerciseForm>(emptyManualExercise);
   const [formError, setFormError] = useState<string | null>(null);
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
+  const [highlightedSectionId, setHighlightedSectionId] = useState<
+    string | null
+  >(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
 
   const libraryFilters = useMemo<ExerciseFilters>(
     () => ({
@@ -552,6 +556,15 @@ export function ClassSessionEditor({
     setFormError(null);
   }, [open, session]);
 
+  useEffect(
+    () => () => {
+      if (highlightTimeoutRef.current) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   if (!session || !plan) {
     return null;
   }
@@ -574,6 +587,41 @@ export function ClassSessionEditor({
     onOpenChange(false);
   };
 
+  const scrollToSection = (
+    sectionId: string,
+    options: { expand?: boolean; focusName?: boolean; highlight?: boolean } = {},
+  ) => {
+    if (options.expand) {
+      setExpandedSectionIds((current) => new Set([...current, sectionId]));
+    }
+
+    setSelectedSectionId(sectionId);
+
+    if (options.highlight) {
+      setHighlightedSectionId(sectionId);
+
+      if (highlightTimeoutRef.current) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        setHighlightedSectionId((current) =>
+          current === sectionId ? null : current,
+        );
+      }, 2200);
+    }
+
+    window.setTimeout(() => {
+      document
+        .getElementById(`class-section-${sectionId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      if (options.focusName) {
+        document.getElementById(`section-name-${sectionId}`)?.focus();
+      }
+    }, 80);
+  };
+
   const savePlan = async () => {
     setFormError(null);
 
@@ -586,7 +634,11 @@ export function ClassSessionEditor({
 
     if (invalidSection) {
       setFormError("Todas las secciones necesitan nombre.");
-      setExpandedSectionIds((current) => new Set([...current, invalidSection.id]));
+      scrollToSection(invalidSection.id, {
+        expand: true,
+        focusName: true,
+        highlight: true,
+      });
       return;
     }
 
@@ -644,6 +696,12 @@ export function ClassSessionEditor({
     }));
     setExpandedSectionIds((current) => new Set([...current, section.id]));
     setSelectedSectionId(section.id);
+    toast.success("seccion anadida");
+    scrollToSection(section.id, {
+      expand: true,
+      focusName: true,
+      highlight: true,
+    });
   };
 
   const updateSection = (
@@ -1079,7 +1137,52 @@ export function ClassSessionEditor({
                       ))}
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="space-y-2 rounded-md border border-border/70 bg-card/45 p-2">
+                    {sections.map((section, sectionIndex) => {
+                      const exerciseMinutes =
+                        getSectionExerciseTotalMinutes(section);
+                      const isSelected = selectedSectionId === section.id;
+
+                      return (
+                        <button
+                          key={section.id}
+                          type="button"
+                          className={cn(
+                            "grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-3 py-2 text-left transition hover:bg-primary/10",
+                            isSelected && "bg-primary/10 ring-1 ring-primary/20",
+                          )}
+                          onClick={() =>
+                            scrollToSection(section.id, {
+                              expand: true,
+                              highlight: true,
+                            })
+                          }
+                        >
+                          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-xs font-semibold text-primary">
+                            {sectionIndex + 1}
+                          </span>
+                          <span className="min-w-0 space-y-1">
+                            <span className="block truncate text-sm font-medium text-foreground">
+                              {section.name || "Sin nombre"}
+                            </span>
+                            <span className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              <span>
+                                {section.estimatedDurationMinutes !== null
+                                  ? `${section.estimatedDurationMinutes} min obj.`
+                                  : "sin objetivo"}
+                              </span>
+                              <span>/</span>
+                              <span>{section.exercises.length} ejercicios</span>
+                              <span>/</span>
+                              <span>{exerciseMinutes} min</span>
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <Button
                   type="button"
@@ -1100,7 +1203,12 @@ export function ClassSessionEditor({
                 return (
                   <article
                     key={section.id}
-                    className="rounded-md border border-border/80 bg-card/60 p-4 shadow-sm"
+                    id={`class-section-${section.id}`}
+                    className={cn(
+                      "scroll-mt-6 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm transition",
+                      highlightedSectionId === section.id &&
+                        "border-primary/70 bg-primary/5 shadow-lg shadow-primary/10 ring-1 ring-primary/30",
+                    )}
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <button
