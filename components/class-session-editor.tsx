@@ -1323,7 +1323,7 @@ export function ClassSessionEditor({
       </Dialog>
 
       <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
-        <DialogContent className="max-w-7xl gap-4 lg:p-7">
+        <DialogContent className="grid-rows-[auto_auto_minmax(0,1fr)] gap-4 !overflow-hidden sm:!max-h-[90vh] sm:!w-[95vw] sm:!max-w-[95vw] lg:!max-w-7xl lg:p-7">
           <DialogHeader>
             <DialogTitle>anadir ejercicio</DialogTitle>
             <DialogDescription>
@@ -1354,10 +1354,11 @@ export function ClassSessionEditor({
             </Button>
           </div>
 
-          <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(0,2fr)_minmax(280px,0.95fr)] xl:grid-cols-[minmax(0,2.2fr)_minmax(340px,0.9fr)]">
+          <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden pr-1">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
             <section
               className={cn(
-                "min-w-0 space-y-4",
+                "min-w-0 space-y-4 overflow-x-hidden",
                 addExerciseMode === "library" ? "block" : "hidden md:block",
               )}
             >
@@ -1403,7 +1404,7 @@ export function ClassSessionEditor({
 
                 <div
                   className={cn(
-                    "grid min-w-0 gap-3 sm:grid-cols-2 md:grid md:grid-cols-4",
+                    "grid min-w-0 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap",
                     areLibraryFiltersOpen ? "grid" : "hidden",
                   )}
                 >
@@ -1411,7 +1412,7 @@ export function ClassSessionEditor({
                     value={libraryCategory}
                     onValueChange={setLibraryCategory}
                   >
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-11 min-w-0 lg:w-[160px]">
                       <SelectValue placeholder="categoria" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1425,7 +1426,7 @@ export function ClassSessionEditor({
                   </Select>
 
                   <Select value={libraryLevel} onValueChange={setLibraryLevel}>
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
                       <SelectValue placeholder="nivel" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1442,7 +1443,7 @@ export function ClassSessionEditor({
                     value={libraryIntensity}
                     onValueChange={setLibraryIntensity}
                   >
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
                       <SelectValue placeholder="intensidad" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1459,7 +1460,7 @@ export function ClassSessionEditor({
                     value={librarySource}
                     onValueChange={setLibrarySource}
                   >
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
                       <SelectValue placeholder="origen" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1517,11 +1518,11 @@ export function ClassSessionEditor({
               ) : null}
 
               {!libraryQuery.isLoading && !libraryQuery.error ? (
-                <div className="grid min-w-0 gap-3 xl:grid-cols-2">
+                <div className="grid min-w-0 gap-3 sm:grid-cols-1 xl:grid-cols-2">
                   {(libraryQuery.data ?? []).map((exercise) => (
                     <div
                       key={exercise.id}
-                      className="flex min-w-0 flex-col justify-between gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm"
+                      className="grid min-w-0 gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm"
                     >
                       <div className="min-w-0 space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1549,7 +1550,7 @@ export function ClassSessionEditor({
                           </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Dumbbell className="h-3.5 w-3.5" />
                             {getOptionLabel(levelOptions, exercise.level)}
@@ -1563,17 +1564,21 @@ export function ClassSessionEditor({
                         </div>
                       </div>
 
-                      <Button
-                        type="button"
-                        className="w-full justify-center sm:w-auto sm:self-end"
-                        disabled={
-                          !selectedSectionId || addSectionExercise.isPending
-                        }
-                        onClick={() => void handleAddLibraryExercise(exercise)}
-                      >
-                        <Plus className="h-4 w-4" />
-                        anadir
-                      </Button>
+                      <div className="flex min-w-0 justify-end">
+                        <Button
+                          type="button"
+                          className="w-full justify-center sm:w-auto"
+                          disabled={
+                            !selectedSectionId || addSectionExercise.isPending
+                          }
+                          onClick={() =>
+                            void handleAddLibraryExercise(exercise)
+                          }
+                        >
+                          <Plus className="h-4 w-4" />
+                          anadir
+                        </Button>
+                      </div>
                     </div>
                   ))}
 
@@ -1713,6 +1718,7 @@ export function ClassSessionEditor({
                 </Button>
               </div>
             </section>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
