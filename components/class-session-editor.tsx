@@ -114,7 +114,7 @@ interface ClassEditorForm {
   title: string;
   startsAt: string;
   endsAt: string;
-  durationMinutes: string;
+  targetDurationMinutes: string;
   status: ClassSessionStatusCode;
   notes: string;
 }
@@ -202,8 +202,58 @@ function optionalNumber(value: string) {
     : undefined;
 }
 
+function positiveOptionalNumber(value: string) {
+  const numberValue = optionalNumber(value);
+
+  return numberValue !== undefined && numberValue > 0
+    ? numberValue
+    : undefined;
+}
+
+function getTargetDuration(session: ClassSession) {
+  return session.targetDurationMinutes ?? session.durationMinutes ?? null;
+}
+
+function getCalculatedExerciseDurationMinutes(session: ClassSession) {
+  const totalDurationSec = (session.sections ?? []).reduce(
+    (classTotal, section) =>
+      classTotal +
+      (section.exercises ?? []).reduce(
+        (sectionTotal, exercise) => sectionTotal + (exercise.durationSec ?? 0),
+        0,
+      ),
+    0,
+  );
+
+  return Math.round(totalDurationSec / 60);
+}
+
 function getEstimatedDuration(session: ClassSession) {
-  return session.estimatedDurationMinutes ?? session.durationMinutes ?? null;
+  return (
+    session.estimatedDurationMinutes ??
+    getCalculatedExerciseDurationMinutes(session)
+  );
+}
+
+function formatDurationDelta(
+  targetDurationMinutes?: number,
+  estimatedDurationMinutes?: number,
+) {
+  if (targetDurationMinutes === undefined) {
+    return "define objetivo";
+  }
+
+  const delta = targetDurationMinutes - (estimatedDurationMinutes ?? 0);
+
+  if (delta > 0) {
+    return `faltan ${delta} min`;
+  }
+
+  if (delta < 0) {
+    return `sobran ${Math.abs(delta)} min`;
+  }
+
+  return "en objetivo";
 }
 
 function minutesToSeconds(value: string) {
@@ -376,7 +426,7 @@ export function ClassSessionEditor({
     title: "",
     startsAt: "",
     endsAt: "",
-    durationMinutes: "",
+    targetDurationMinutes: "",
     status: "SCHEDULED",
     notes: "",
   });
@@ -463,7 +513,7 @@ export function ClassSessionEditor({
       title: session.title,
       startsAt: toDateTimeInputValue(session.startsAt),
       endsAt: toDateTimeInputValue(session.endsAt),
-      durationMinutes: getEstimatedDuration(session)?.toString() ?? "",
+      targetDurationMinutes: getTargetDuration(session)?.toString() ?? "",
       status: normalizeStatus(session.status),
       notes: session.notes ?? "",
     });
@@ -506,9 +556,14 @@ export function ClassSessionEditor({
     const endsAt = classForm.endsAt
       ? (toIsoDateTime(classForm.endsAt) ?? undefined)
       : classForm.startsAt
-        ? addMinutesToIsoDateTime(classForm.startsAt, classForm.durationMinutes)
+        ? addMinutesToIsoDateTime(
+            classForm.startsAt,
+            classForm.targetDurationMinutes,
+          )
         : null;
-    const durationMinutes = optionalNumber(classForm.durationMinutes);
+    const targetDurationMinutes = positiveOptionalNumber(
+      classForm.targetDurationMinutes,
+    );
 
     if ((classForm.startsAt && !startsAt) || (classForm.endsAt && !endsAt)) {
       setFormError("Revisa las fechas de la clase.");
@@ -524,8 +579,7 @@ export function ClassSessionEditor({
       title: classForm.title.trim(),
       startsAt,
       endsAt: endsAt ?? null,
-      durationMinutes,
-      estimatedDurationMinutes: durationMinutes,
+      targetDurationMinutes,
       notes: classForm.notes.trim() || undefined,
       status: classForm.status,
     });
@@ -769,6 +823,15 @@ export function ClassSessionEditor({
     await reorderPromise.catch(() => undefined);
   };
 
+  const targetDurationMinutes = positiveOptionalNumber(
+    classForm.targetDurationMinutes,
+  );
+  const estimatedDurationMinutes = getEstimatedDuration(session);
+  const durationDeltaLabel = formatDurationDelta(
+    targetDurationMinutes,
+    estimatedDurationMinutes,
+  );
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -837,22 +900,33 @@ export function ClassSessionEditor({
 
                   <div className="space-y-2 sm:col-span-2 lg:col-span-1 xl:col-span-2">
                     <Label htmlFor="editor-class-duration">
-                      duracion estimada min.
+                      duracion objetivo min.
                     </Label>
                     <Input
                       id="editor-class-duration"
                       type="number"
                       min="1"
-                      value={classForm.durationMinutes}
+                      value={classForm.targetDurationMinutes}
                       onChange={(event) =>
                         setClassForm({
                           ...classForm,
-                          durationMinutes: event.target.value,
+                          targetDurationMinutes: event.target.value,
                         })
                       }
                       placeholder="60"
                     />
                   </div>
+                </div>
+
+                <div className="grid gap-2 rounded-md border border-border/70 bg-muted/25 p-3 text-sm text-muted-foreground sm:grid-cols-3">
+                  <span>
+                    objetivo:{" "}
+                    {targetDurationMinutes !== undefined
+                      ? `${targetDurationMinutes} min`
+                      : "sin definir"}
+                  </span>
+                  <span>estimado actual: {estimatedDurationMinutes} min</span>
+                  <span>diferencia: {durationDeltaLabel}</span>
                 </div>
 
                 <div className="space-y-2">

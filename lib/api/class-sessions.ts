@@ -32,8 +32,10 @@ export interface ClassSession {
   training?: ApiTraining | null;
   startsAt?: string | Date | null;
   endsAt?: string | Date | null;
-  durationMinutes?: number | null;
+  targetDurationMinutes?: number | null;
   estimatedDurationMinutes?: number | null;
+  // Legacy API field kept only for reading older responses.
+  durationMinutes?: number | null;
   status?: ClassSessionStatus | null;
   isEnabled?: boolean | null;
   notes?: string | null;
@@ -89,8 +91,7 @@ export interface CreateClassSessionInput {
   trainingId?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
-  durationMinutes?: number | null;
-  estimatedDurationMinutes?: number | null;
+  targetDurationMinutes?: number | null;
   notes?: string | null;
 }
 
@@ -337,6 +338,9 @@ function normalizeClassSessionSection(
 function normalizeClassSession(session: ClassSession): ClassSession {
   return {
     ...session,
+    targetDurationMinutes: optionalNumber(session.targetDurationMinutes),
+    estimatedDurationMinutes: optionalNumber(session.estimatedDurationMinutes),
+    durationMinutes: optionalNumber(session.durationMinutes),
     sections: sortClassSessionSections(
       (session.sections ?? []).map(normalizeClassSessionSection),
     ),

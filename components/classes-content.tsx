@@ -56,7 +56,7 @@ interface ClassSessionFormState {
   title: string;
   startsAt: string;
   endsAt: string;
-  durationMinutes: string;
+  targetDurationMinutes: string;
   notes: string;
 }
 
@@ -64,7 +64,7 @@ const initialForm: ClassSessionFormState = {
   title: "",
   startsAt: "",
   endsAt: "",
-  durationMinutes: "",
+  targetDurationMinutes: "",
   notes: "",
 };
 
@@ -141,8 +141,25 @@ function optionalNumber(value: string) {
     : undefined;
 }
 
+function getCalculatedExerciseDurationMinutes(session: ClassSession) {
+  const totalDurationSec = (session.sections ?? []).reduce(
+    (classTotal, section) =>
+      classTotal +
+      (section.exercises ?? []).reduce(
+        (sectionTotal, exercise) => sectionTotal + (exercise.durationSec ?? 0),
+        0,
+      ),
+    0,
+  );
+
+  return Math.round(totalDurationSec / 60);
+}
+
 function getEstimatedDuration(session: ClassSession) {
-  return session.estimatedDurationMinutes ?? session.durationMinutes ?? null;
+  return (
+    session.estimatedDurationMinutes ??
+    getCalculatedExerciseDurationMinutes(session)
+  );
 }
 
 function getSessionTime(session: ClassSession) {
@@ -486,9 +503,9 @@ export function ClassesContent() {
     const endsAt = form.endsAt
       ? (toIsoDateTime(form.endsAt) ?? undefined)
       : form.startsAt
-        ? addMinutesToIsoDateTime(form.startsAt, form.durationMinutes)
+        ? addMinutesToIsoDateTime(form.startsAt, form.targetDurationMinutes)
         : undefined;
-    const durationMinutes = optionalNumber(form.durationMinutes);
+    const targetDurationMinutes = optionalNumber(form.targetDurationMinutes);
 
     if ((form.startsAt && !startsAt) || (form.endsAt && !endsAt)) {
       setFormError("Revisa la fecha y hora de la clase.");
@@ -505,8 +522,7 @@ export function ClassesContent() {
         title: form.title.trim(),
         startsAt: startsAt ?? null,
         endsAt: endsAt ?? null,
-        durationMinutes,
-        estimatedDurationMinutes: durationMinutes,
+        targetDurationMinutes,
         notes: form.notes.trim() || undefined,
       });
 
@@ -740,14 +756,17 @@ export function ClassesContent() {
               </div>
 
               <div className="space-y-2 sm:col-span-2 xl:col-span-1">
-                <Label htmlFor="class-duration">duracion estimada min.</Label>
+                <Label htmlFor="class-duration">duracion objetivo min.</Label>
                 <Input
                   id="class-duration"
                   type="number"
                   min="1"
-                  value={form.durationMinutes}
+                  value={form.targetDurationMinutes}
                   onChange={(event) =>
-                    setForm({ ...form, durationMinutes: event.target.value })
+                    setForm({
+                      ...form,
+                      targetDurationMinutes: event.target.value,
+                    })
                   }
                   placeholder="60"
                 />
