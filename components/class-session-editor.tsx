@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  Activity,
   ArrowDown,
   ArrowUp,
   Clock,
@@ -73,6 +72,8 @@ import { cn } from "@/lib/utils";
 const ALL_VALUE = "all";
 const GLOBAL_SOURCE_VALUE = "global";
 const LOCAL_SOURCE_VALUE = "local";
+
+type AddExerciseMode = "library" | "manual";
 
 const categoryOptions: Array<{ value: ExerciseCategory; label: string }> = [
   { value: "WARMUP", label: "Calentamiento" },
@@ -294,6 +295,12 @@ function getExerciseDescription(exercise: Exercise) {
   );
 }
 
+function getExerciseSourceLabel(exercise: Exercise) {
+  return exercise.isGlobal === false || exercise.organizationId
+    ? "Mi gimnasio"
+    : "BoxPlanner";
+}
+
 function formatClassDate(value?: string | Date | null) {
   if (!value) {
     return "sin programar";
@@ -437,6 +444,8 @@ export function ClassSessionEditor({
     null,
   );
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [addExerciseMode, setAddExerciseMode] =
+    useState<AddExerciseMode>("library");
   const [editingExercise, setEditingExercise] = useState<{
     sectionId: string;
     exerciseId: string;
@@ -678,6 +687,7 @@ export function ClassSessionEditor({
   const openLibraryForSection = (sectionId: string) => {
     setSelectedSectionId(sectionId);
     setManualExercise(emptyManualExercise);
+    setAddExerciseMode("library");
     setIsLibraryOpen(true);
   };
 
@@ -1313,7 +1323,7 @@ export function ClassSessionEditor({
       </Dialog>
 
       <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
-        <DialogContent className="max-w-5xl lg:p-7">
+        <DialogContent className="max-w-7xl gap-4 lg:p-7">
           <DialogHeader>
             <DialogTitle>anadir ejercicio</DialogTitle>
             <DialogDescription>
@@ -1323,16 +1333,42 @@ export function ClassSessionEditor({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="space-y-4">
-              <div className="space-y-3 rounded-lg border border-border/70 bg-background/45 p-3">
+          <div className="grid grid-cols-2 rounded-md bg-muted p-1 md:hidden">
+            <Button
+              type="button"
+              size="sm"
+              variant={addExerciseMode === "library" ? "default" : "ghost"}
+              className="h-9"
+              onClick={() => setAddExerciseMode("library")}
+            >
+              Biblioteca
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={addExerciseMode === "manual" ? "default" : "ghost"}
+              className="h-9"
+              onClick={() => setAddExerciseMode("manual")}
+            >
+              Manual
+            </Button>
+          </div>
+
+          <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(0,2fr)_minmax(280px,0.95fr)] xl:grid-cols-[minmax(0,2.2fr)_minmax(340px,0.9fr)]">
+            <section
+              className={cn(
+                "min-w-0 space-y-4",
+                addExerciseMode === "library" ? "block" : "hidden md:block",
+              )}
+            >
+              <div className="space-y-3 rounded-md border border-border/70 bg-background/45 p-4">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={librarySearch}
                     onChange={(event) => setLibrarySearch(event.target.value)}
                     placeholder="buscar ejercicios"
-                    className="pl-9"
+                    className="h-12 pl-11 text-base"
                   />
                 </div>
 
@@ -1352,8 +1388,9 @@ export function ClassSessionEditor({
                     type="button"
                     variant="ghost"
                     className="text-muted-foreground"
-                    disabled={!hasLibraryFilters}
+                    disabled={!hasLibraryFilters && !librarySearch.trim()}
                     onClick={() => {
+                      setLibrarySearch("");
                       setLibraryCategory(ALL_VALUE);
                       setLibraryLevel(ALL_VALUE);
                       setLibraryIntensity(ALL_VALUE);
@@ -1366,7 +1403,7 @@ export function ClassSessionEditor({
 
                 <div
                   className={cn(
-                    "grid gap-3 md:grid md:grid-cols-4",
+                    "grid min-w-0 gap-3 sm:grid-cols-2 md:grid md:grid-cols-4",
                     areLibraryFiltersOpen ? "grid" : "hidden",
                   )}
                 >
@@ -1374,7 +1411,7 @@ export function ClassSessionEditor({
                     value={libraryCategory}
                     onValueChange={setLibraryCategory}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="categoria" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1388,7 +1425,7 @@ export function ClassSessionEditor({
                   </Select>
 
                   <Select value={libraryLevel} onValueChange={setLibraryLevel}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="nivel" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1405,7 +1442,7 @@ export function ClassSessionEditor({
                     value={libraryIntensity}
                     onValueChange={setLibraryIntensity}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="intensidad" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1422,7 +1459,7 @@ export function ClassSessionEditor({
                     value={librarySource}
                     onValueChange={setLibrarySource}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="origen" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1435,6 +1472,29 @@ export function ClassSessionEditor({
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="hidden items-center justify-between gap-3 md:flex">
+                  <p className="text-sm text-muted-foreground">
+                    {(libraryQuery.data ?? []).length} ejercicios disponibles
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    disabled={!hasLibraryFilters && !librarySearch.trim()}
+                    onClick={() => {
+                      setLibrarySearch("");
+                      setLibraryCategory(ALL_VALUE);
+                      setLibraryLevel(ALL_VALUE);
+                      setLibraryIntensity(ALL_VALUE);
+                      setLibrarySource(ALL_VALUE);
+                    }}
+                  >
+                    <ListRestart className="h-4 w-4" />
+                    limpiar
+                  </Button>
                 </div>
               </div>
 
@@ -1457,62 +1517,63 @@ export function ClassSessionEditor({
               ) : null}
 
               {!libraryQuery.isLoading && !libraryQuery.error ? (
-                <div className="max-h-[50dvh] space-y-3 overflow-y-auto pr-1 md:max-h-[58dvh]">
+                <div className="grid min-w-0 gap-3 xl:grid-cols-2">
                   {(libraryQuery.data ?? []).map((exercise) => (
                     <div
                       key={exercise.id}
-                      className="rounded-lg border border-border/80 bg-card/60 p-3 shadow-sm"
+                      className="flex min-w-0 flex-col justify-between gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm"
                     >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 space-y-2">
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">
-                              {getOptionLabel(
-                                categoryOptions,
-                                exercise.category,
-                              )}
-                            </Badge>
-                            <Badge variant="outline">
-                              {getOptionLabel(
-                                intensityOptions,
-                                exercise.intensity,
-                              )}
-                            </Badge>
-                          </div>
-                          <h4 className="font-medium text-foreground">
+                      <div className="min-w-0 space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">
+                            {getOptionLabel(categoryOptions, exercise.category)}
+                          </Badge>
+                          <Badge variant="outline">
+                            {getOptionLabel(
+                              intensityOptions,
+                              exercise.intensity,
+                            )}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {getExerciseSourceLabel(exercise)}
+                          </Badge>
+                        </div>
+
+                        <div className="min-w-0">
+                          <h4 className="truncate text-base font-semibold text-foreground">
                             {exercise.name}
                           </h4>
-                          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
                             {getExerciseDescription(exercise) ||
                               "sin descripcion"}
                           </p>
-                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Dumbbell className="h-3.5 w-3.5" />
-                              {getOptionLabel(levelOptions, exercise.level)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Activity className="h-3.5 w-3.5" />
-                              {exercise.averageDurationMinutes
-                                ? `${exercise.averageDurationMinutes} min`
-                                : "sin duracion"}
-                            </span>
-                          </div>
                         </div>
-                        <Button
-                          type="button"
-                          className="w-full sm:w-auto"
-                          disabled={
-                            !selectedSectionId || addSectionExercise.isPending
-                          }
-                          onClick={() =>
-                            void handleAddLibraryExercise(exercise)
-                          }
-                        >
-                          <Plus className="h-4 w-4" />
-                          anadir
-                        </Button>
+
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Dumbbell className="h-3.5 w-3.5" />
+                            {getOptionLabel(levelOptions, exercise.level)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" />
+                            {exercise.averageDurationMinutes
+                              ? `${exercise.averageDurationMinutes} min`
+                              : "sin duracion"}
+                          </span>
+                        </div>
                       </div>
+
+                      <Button
+                        type="button"
+                        className="w-full justify-center sm:w-auto sm:self-end"
+                        disabled={
+                          !selectedSectionId || addSectionExercise.isPending
+                        }
+                        onClick={() => void handleAddLibraryExercise(exercise)}
+                      >
+                        <Plus className="h-4 w-4" />
+                        anadir
+                      </Button>
                     </div>
                   ))}
 
@@ -1520,126 +1581,137 @@ export function ClassSessionEditor({
                     <EmptyState
                       title="sin resultados"
                       description="prueba otra busqueda o crea uno manual rapido."
-                      className="min-h-[220px]"
+                      className="min-h-[220px] xl:col-span-2"
                     />
                   ) : null}
                 </div>
               ) : null}
             </section>
 
-            <section className="space-y-4 rounded-lg border border-border/80 bg-background/45 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  ejercicio manual rapido
-                </h3>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  para anadir algo de la clase sin crearlo en biblioteca.
-                </p>
-              </div>
+            <section
+              className={cn(
+                "min-w-0 self-start rounded-md border border-border/80 bg-background/45 p-4",
+                addExerciseMode === "manual" ? "block" : "hidden md:block",
+              )}
+            >
+              <div className="flex min-h-full flex-col gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    ejercicio manual rapido
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    para anadir algo puntual sin guardarlo en biblioteca.
+                  </p>
+                </div>
 
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="manual-exercise-name">nombre</Label>
-                  <Input
-                    id="manual-exercise-name"
-                    value={manualExercise.name}
-                    onChange={(event) =>
-                      setManualExercise({
-                        ...manualExercise,
-                        name: event.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-exercise-description">
-                    descripcion corta
-                  </Label>
-                  <Textarea
-                    id="manual-exercise-description"
-                    rows={3}
-                    value={manualExercise.description}
-                    onChange={(event) =>
-                      setManualExercise({
-                        ...manualExercise,
-                        description: event.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="manual-exercise-duration">min.</Label>
+                    <Label htmlFor="manual-exercise-name">nombre</Label>
                     <Input
-                      id="manual-exercise-duration"
-                      type="number"
-                      min="0"
-                      value={manualExercise.durationMinutes}
+                      id="manual-exercise-name"
+                      className="h-11"
+                      value={manualExercise.name}
                       onChange={(event) =>
                         setManualExercise({
                           ...manualExercise,
-                          durationMinutes: event.target.value,
+                          name: event.target.value,
                         })
                       }
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="manual-exercise-reps">reps</Label>
-                    <Input
-                      id="manual-exercise-reps"
-                      type="number"
-                      min="0"
-                      value={manualExercise.reps}
+                    <Label htmlFor="manual-exercise-description">
+                      descripcion corta
+                    </Label>
+                    <Textarea
+                      id="manual-exercise-description"
+                      rows={3}
+                      value={manualExercise.description}
                       onChange={(event) =>
                         setManualExercise({
                           ...manualExercise,
-                          reps: event.target.value,
+                          description: event.target.value,
                         })
                       }
                     />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-exercise-duration">min.</Label>
+                      <Input
+                        id="manual-exercise-duration"
+                        className="h-11"
+                        type="number"
+                        min="0"
+                        value={manualExercise.durationMinutes}
+                        onChange={(event) =>
+                          setManualExercise({
+                            ...manualExercise,
+                            durationMinutes: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-exercise-reps">reps</Label>
+                      <Input
+                        id="manual-exercise-reps"
+                        className="h-11"
+                        type="number"
+                        min="0"
+                        value={manualExercise.reps}
+                        onChange={(event) =>
+                          setManualExercise({
+                            ...manualExercise,
+                            reps: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-exercise-rest">descanso s.</Label>
+                      <Input
+                        id="manual-exercise-rest"
+                        className="h-11"
+                        type="number"
+                        min="0"
+                        value={manualExercise.restSec}
+                        onChange={(event) =>
+                          setManualExercise({
+                            ...manualExercise,
+                            restSec: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="manual-exercise-rest">descanso s.</Label>
-                    <Input
-                      id="manual-exercise-rest"
-                      type="number"
-                      min="0"
-                      value={manualExercise.restSec}
+                    <Label htmlFor="manual-exercise-notes">notas</Label>
+                    <Textarea
+                      id="manual-exercise-notes"
+                      rows={3}
+                      value={manualExercise.notes}
                       onChange={(event) =>
                         setManualExercise({
                           ...manualExercise,
-                          restSec: event.target.value,
+                          notes: event.target.value,
                         })
                       }
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-exercise-notes">notas</Label>
-                  <Textarea
-                    id="manual-exercise-notes"
-                    rows={3}
-                    value={manualExercise.notes}
-                    onChange={(event) =>
-                      setManualExercise({
-                        ...manualExercise,
-                        notes: event.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
 
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                disabled={!selectedSectionId || addSectionExercise.isPending}
-                onClick={() => void handleManualAdd()}
-              >
-                <Plus className="h-4 w-4" />
-                anadir manual
-              </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="mt-auto w-full"
+                  disabled={!selectedSectionId || addSectionExercise.isPending}
+                  onClick={() => void handleManualAdd()}
+                >
+                  <Plus className="h-4 w-4" />
+                  anadir manual
+                </Button>
+              </div>
             </section>
           </div>
         </DialogContent>
