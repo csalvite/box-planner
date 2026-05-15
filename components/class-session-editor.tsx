@@ -5,13 +5,16 @@ import { toast } from "sonner";
 import {
   ArrowDown,
   ArrowUp,
+  AlertCircle,
   ChevronDown,
   ChevronRight,
+  CheckCircle2,
   Clock,
   Dumbbell,
   FileText,
   Library,
   ListRestart,
+  Loader2,
   Plus,
   Save,
   Search,
@@ -833,6 +836,45 @@ export function ClassSessionEditor({
     setExpandedSectionIds(new Set());
   };
 
+  const saveState = saveError
+    ? "error"
+    : isSaving
+      ? "saving"
+      : isDirty
+        ? "dirty"
+        : "saved";
+  const saveStateConfig = {
+    dirty: {
+      icon: AlertCircle,
+      label: "Cambios sin guardar",
+      description: "hay cambios locales pendientes de guardar",
+      className:
+        "border-amber-500/40 bg-amber-500/10 text-amber-200 ring-amber-500/20",
+    },
+    saving: {
+      icon: Loader2,
+      label: "Guardando...",
+      description: "guardando cambios en la clase",
+      className:
+        "border-primary/40 bg-primary/10 text-primary ring-primary/20",
+    },
+    saved: {
+      icon: CheckCircle2,
+      label: "Guardado",
+      description: "todo esta guardado",
+      className:
+        "border-emerald-500/35 bg-emerald-500/10 text-emerald-200 ring-emerald-500/20",
+    },
+    error: {
+      icon: AlertCircle,
+      label: "Error al guardar",
+      description: "no pudimos guardar los ultimos cambios",
+      className:
+        "border-destructive/45 bg-destructive/10 text-destructive ring-destructive/20",
+    },
+  }[saveState];
+  const SaveStateIcon = saveStateConfig.icon;
+
   return (
     <>
       <Dialog open={open} onOpenChange={requestClose}>
@@ -846,11 +888,20 @@ export function ClassSessionEditor({
                 </DialogDescription>
               </div>
               <div className="flex flex-wrap gap-2">
-                {isDirty ? (
-                  <Badge variant="secondary">cambios sin guardar</Badge>
-                ) : (
-                  <Badge variant="outline">guardado</Badge>
-                )}
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ring-1",
+                    saveStateConfig.className,
+                  )}
+                >
+                  <SaveStateIcon
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      saveState === "saving" && "animate-spin",
+                    )}
+                  />
+                  {saveStateConfig.label}
+                </span>
                 <Badge variant="outline">{sections.length} secciones</Badge>
               </div>
             </div>
@@ -1359,11 +1410,20 @@ export function ClassSessionEditor({
             )}
 
             <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-2 border-t border-border/70 bg-card/95 px-1 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                {isDirty
-                  ? "hay cambios locales pendientes de guardar"
-                  : "todo esta guardado"}
-              </p>
+              <div
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ring-1",
+                  saveStateConfig.className,
+                )}
+              >
+                <SaveStateIcon
+                  className={cn(
+                    "h-4 w-4",
+                    saveState === "saving" && "animate-spin",
+                  )}
+                />
+                <span>{saveStateConfig.description}</span>
+              </div>
               <Button
                 type="button"
                 size="lg"
@@ -1371,7 +1431,11 @@ export function ClassSessionEditor({
                 onClick={() => void savePlan()}
               >
                 <Save className="h-4 w-4" />
-                {isSaving ? "guardando..." : "guardar cambios"}
+                {isSaving
+                  ? "Guardando..."
+                  : isDirty
+                    ? "Guardar cambios"
+                    : "Guardado"}
               </Button>
             </div>
           </div>
@@ -1379,7 +1443,7 @@ export function ClassSessionEditor({
       </Dialog>
 
       <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
-        <DialogContent className="grid-rows-[auto_auto_minmax(0,1fr)] gap-4 !overflow-hidden sm:!max-h-[90vh] sm:!w-[95vw] sm:!max-w-[95vw] lg:!max-w-7xl lg:p-7">
+        <DialogContent className="grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-4 !overflow-hidden sm:!max-h-[90vh] sm:!w-[95vw] sm:!max-w-[95vw] lg:!max-w-7xl lg:p-7">
           <DialogHeader>
             <DialogTitle>anadir ejercicio</DialogTitle>
             <DialogDescription>
@@ -1786,6 +1850,17 @@ export function ClassSessionEditor({
                 </div>
               </section>
             </div>
+          </div>
+
+          <div className="-mx-1 border-t border-border/70 bg-card/95 px-1 pt-3 backdrop-blur">
+            <Button
+              type="button"
+              size="lg"
+              className="w-full sm:ml-auto sm:w-auto"
+              onClick={() => setIsLibraryOpen(false)}
+            >
+              Hecho
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

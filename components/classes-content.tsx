@@ -219,6 +219,21 @@ function getEstimatedDuration(session: ClassSession) {
   );
 }
 
+function getClassStructureSummary(session: ClassSession) {
+  const sections = session.sections ?? [];
+  const exerciseCount = sections.reduce(
+    (total, section) => total + (section.exercises?.length ?? 0),
+    0,
+  );
+  const estimatedMinutes = getEstimatedDuration(session);
+
+  return {
+    sectionCount: sections.length,
+    exerciseCount,
+    estimatedMinutes,
+  };
+}
+
 function getSessionTime(session: ClassSession) {
   if (!session.startsAt) {
     return null;
@@ -227,6 +242,69 @@ function getSessionTime(session: ClassSession) {
   const date = new Date(session.startsAt);
 
   return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function getNextScheduledSession(sessions: ClassSession[]) {
+  const now = Date.now();
+
+  return [...sessions]
+    .map((session) => ({
+      session,
+      startsAtTime: getSessionTime(session),
+    }))
+    .filter(
+      ({ session, startsAtTime }) =>
+        startsAtTime !== null &&
+        startsAtTime >= now &&
+        getDisplayState(session) !== "CANCELLED",
+    )
+    .sort(
+      (firstSession, secondSession) =>
+        (firstSession.startsAtTime ?? 0) - (secondSession.startsAtTime ?? 0),
+    )[0]?.session;
+}
+
+function sortClassSessionsForList(
+  sessions: ClassSession[],
+  nextSessionId?: string,
+  statusFilter?: ClassSessionListFilter,
+) {
+  return [...sessions].sort((firstSession, secondSession) => {
+    if (firstSession.id === nextSessionId) {
+      return -1;
+    }
+
+    if (secondSession.id === nextSessionId) {
+      return 1;
+    }
+
+    const firstTime = getSessionTime(firstSession);
+    const secondTime = getSessionTime(secondSession);
+
+    if (statusFilter !== "cancelled") {
+      if (firstTime === null && secondTime !== null) {
+        return 1;
+      }
+
+      if (firstTime !== null && secondTime === null) {
+        return -1;
+      }
+    }
+
+    if (firstTime === null && secondTime === null) {
+      return firstSession.title.localeCompare(secondSession.title);
+    }
+
+    if (firstTime === null) {
+      return -1;
+    }
+
+    if (secondTime === null) {
+      return 1;
+    }
+
+    return firstTime - secondTime;
+  });
 }
 
 function formatSessionDate(value?: string | Date | null) {
@@ -375,6 +453,7 @@ function ClassSessionCard({
   isUpdatingStatus,
   isUpdatingEnabled,
   canEdit,
+  isNextSession,
   onEdit,
   onSchedule,
   onToggleEnabled,
@@ -386,6 +465,7 @@ function ClassSessionCard({
   isUpdatingStatus: boolean;
   isUpdatingEnabled: boolean;
   canEdit: boolean;
+  isNextSession: boolean;
   onEdit: () => void;
   onSchedule: () => void;
   onToggleEnabled: () => void;
@@ -398,6 +478,7 @@ function ClassSessionCard({
   const estimatedDuration = getEstimatedDuration(session);
   const isUnscheduled = !getSessionTime(session);
   const isMuted = displayState === "DISABLED" || displayState === "CANCELLED";
+  const structureSummary = getClassStructureSummary(session);
   const toggleStatusLabel =
     displayState === "DISABLED" ? "habilitar" : "deshabilitar";
 
@@ -405,6 +486,8 @@ function ClassSessionCard({
     <Card
       className={cn(
         "border-border/80 bg-card/70 p-4 shadow-md shadow-black/15 transition md:p-5",
+        isNextSession &&
+          "border-primary/55 bg-primary/5 shadow-lg shadow-primary/10 ring-1 ring-primary/25",
         isMuted && "border-border/45 bg-card/45 opacity-75 shadow-black/5",
       )}
     >
@@ -419,6 +502,11 @@ function ClassSessionCard({
             >
               {statusLabels[displayState]}
             </span>
+            {isNextSession ? (
+              <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/25">
+                proxima clase
+              </span>
+            ) : null}
             <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-medium text-secondary-foreground ring-1 ring-white/10">
               {dateTime.day}
             </span>
@@ -454,6 +542,19 @@ function ClassSessionCard({
                 {getAttendanceCount(session)} apuntados
               </span>
             </div>
+            {isNextSession ? (
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1 text-primary">
+                  {structureSummary.sectionCount} secciones
+                </span>
+                <span className="rounded-md border border-border/70 bg-background/45 px-2.5 py-1">
+                  {structureSummary.exerciseCount} ejercicios
+                </span>
+                <span className="rounded-md border border-border/70 bg-background/45 px-2.5 py-1">
+                  {structureSummary.estimatedMinutes} min
+                </span>
+              </div>
+            ) : null}
           </div>
 
           {session.notes ? (
@@ -598,29 +699,18 @@ export function ClassesContent() {
     );
   }, [defaultSchedules]);
 
+  const nextScheduledSession = useMemo(
+    () => getNextScheduledSession(classSessionsQuery.data ?? []),
+    [classSessionsQuery.data],
+  );
   const sessions = useMemo(
     () =>
-      [...(classSessionsQuery.data ?? [])].sort(
-        (firstSession, secondSession) => {
-          const firstTime = getSessionTime(firstSession);
-          const secondTime = getSessionTime(secondSession);
-
-          if (firstTime === null && secondTime === null) {
-            return firstSession.title.localeCompare(secondSession.title);
-          }
-
-          if (firstTime === null) {
-            return -1;
-          }
-
-          if (secondTime === null) {
-            return 1;
-          }
-
-          return firstTime - secondTime;
-        },
+      sortClassSessionsForList(
+        classSessionsQuery.data ?? [],
+        nextScheduledSession?.id,
+        statusFilter,
       ),
-    [classSessionsQuery.data],
+    [classSessionsQuery.data, nextScheduledSession?.id, statusFilter],
   );
   const currentEditingSession = editingSession
     ? (sessions.find((session) => session.id === editingSession.id) ??
@@ -1262,6 +1352,7 @@ export function ClassesContent() {
                   isUpdatingStatus={isUpdatingThisStatus}
                   isUpdatingEnabled={isUpdatingThisEnabled}
                   canEdit={canManageClasses}
+                  isNextSession={session.id === nextScheduledSession?.id}
                   onEdit={() => setEditingSession(session)}
                   onSchedule={() => setScheduleSession(session)}
                   onToggleEnabled={() =>
