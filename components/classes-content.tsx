@@ -28,12 +28,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/components/ui/data-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveOrganization } from "@/components/providers/organization-provider";
 import {
@@ -42,12 +56,13 @@ import {
   useDeleteClassSession,
   useUpdateClassSession,
   useUpdateClassSessionEnabled,
+  useUpdateClassSessionFullPlan,
   useUpdateClassSessionStatus,
 } from "@/hooks/use-class-sessions";
 import type {
   ClassSession,
+  ClassSessionFullPlanInput,
   ClassSessionStatusCode,
-  UpdateClassSessionInput,
 } from "@/lib/api/class-sessions";
 import { isStaffOrganization } from "@/lib/organization-role";
 import { cn } from "@/lib/utils";
@@ -58,6 +73,14 @@ interface ClassSessionFormState {
   endsAt: string;
   targetDurationMinutes: string;
   notes: string;
+}
+
+interface DefaultSchedule {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  label: string;
 }
 
 const initialForm: ClassSessionFormState = {
@@ -100,6 +123,40 @@ const statusFilters: Array<{
   { value: "enabled", label: "Habilitadas" },
   { value: "disabled", label: "Deshabilitadas" },
   { value: "cancelled", label: "Canceladas" },
+];
+
+const weekdayOptions = [
+  { value: 1, label: "lunes" },
+  { value: 2, label: "martes" },
+  { value: 3, label: "miercoles" },
+  { value: 4, label: "jueves" },
+  { value: 5, label: "viernes" },
+  { value: 6, label: "sabado" },
+  { value: 0, label: "domingo" },
+];
+
+const initialDefaultSchedules: DefaultSchedule[] = [
+  {
+    id: "default-tuesday",
+    weekday: 2,
+    startTime: "21:00",
+    endTime: "22:00",
+    label: "martes noche",
+  },
+  {
+    id: "default-thursday",
+    weekday: 4,
+    startTime: "21:00",
+    endTime: "22:00",
+    label: "jueves noche",
+  },
+  {
+    id: "default-friday",
+    weekday: 5,
+    startTime: "21:15",
+    endTime: "22:15",
+    label: "viernes noche",
+  },
 ];
 
 function toIsoDateTime(value: string) {
@@ -272,6 +329,46 @@ function useDebouncedValue<T>(value: T, delayMs = 300) {
   return debouncedValue;
 }
 
+function createScheduleId() {
+  return `schedule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getWeekdayLabel(weekday: number) {
+  return (
+    weekdayOptions.find((option) => option.value === weekday)?.label ??
+    "horario"
+  );
+}
+
+function getNextDateForSchedule(schedule: DefaultSchedule) {
+  const now = new Date();
+  const [startHour, startMinute] = schedule.startTime.split(":").map(Number);
+  const nextDate = new Date(now);
+  nextDate.setHours(startHour ?? 0, startMinute ?? 0, 0, 0);
+
+  let daysUntil = schedule.weekday - now.getDay();
+
+  if (daysUntil < 0 || (daysUntil === 0 && nextDate <= now)) {
+    daysUntil += 7;
+  }
+
+  nextDate.setDate(now.getDate() + daysUntil);
+
+  return nextDate;
+}
+
+function getScheduleEndDate(startDate: Date, schedule: DefaultSchedule) {
+  const [endHour, endMinute] = schedule.endTime.split(":").map(Number);
+  const endDate = new Date(startDate);
+  endDate.setHours(endHour ?? 0, endMinute ?? 0, 0, 0);
+
+  if (endDate <= startDate) {
+    endDate.setDate(endDate.getDate() + 1);
+  }
+
+  return endDate;
+}
+
 function ClassSessionCard({
   session,
   isDeleting,
@@ -279,6 +376,7 @@ function ClassSessionCard({
   isUpdatingEnabled,
   canEdit,
   onEdit,
+  onSchedule,
   onToggleEnabled,
   onCancel,
   onDelete,
@@ -289,6 +387,7 @@ function ClassSessionCard({
   isUpdatingEnabled: boolean;
   canEdit: boolean;
   onEdit: () => void;
+  onSchedule: () => void;
   onToggleEnabled: () => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -367,6 +466,15 @@ function ClassSessionCard({
 
         {canEdit ? (
           <div className="grid gap-2 sm:min-w-44">
+            <Button
+              type="button"
+              variant={isUnscheduled ? "default" : "outline"}
+              className={cn("w-full", !isUnscheduled && "bg-transparent")}
+              onClick={onSchedule}
+            >
+              <CalendarClock className="h-4 w-4" />
+              {isUnscheduled ? "programar proxima" : "programar"}
+            </Button>
             <Button type="button" className="w-full" onClick={onEdit}>
               <Dumbbell className="h-4 w-4" />
               preparar clase
@@ -434,6 +542,8 @@ export function ClassesContent() {
   );
   const createClassSession = useCreateClassSession(classesOrganizationId);
   const updateClassSession = useUpdateClassSession(classesOrganizationId);
+  const updateClassSessionFullPlan =
+    useUpdateClassSessionFullPlan(classesOrganizationId);
   const updateClassSessionEnabled = useUpdateClassSessionEnabled(
     classesOrganizationId,
   );
@@ -445,10 +555,48 @@ export function ClassesContent() {
   const [editingSession, setEditingSession] = useState<ClassSession | null>(
     null,
   );
+  const [scheduleSession, setScheduleSession] = useState<ClassSession | null>(
+    null,
+  );
   const [sessionToDelete, setSessionToDelete] = useState<ClassSession | null>(
     null,
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [defaultSchedules, setDefaultSchedules] = useState<DefaultSchedule[]>(
+    initialDefaultSchedules,
+  );
+  const [scheduleForm, setScheduleForm] = useState({
+    weekday: "2",
+    startTime: "21:00",
+    endTime: "22:00",
+    label: "",
+  });
+
+  useEffect(() => {
+    const storedSchedules = window.localStorage.getItem(
+      "boxplanner-default-class-schedules",
+    );
+
+    if (!storedSchedules) {
+      return;
+    }
+
+    try {
+      const parsedSchedules = JSON.parse(storedSchedules) as DefaultSchedule[];
+      if (Array.isArray(parsedSchedules)) {
+        setDefaultSchedules(parsedSchedules);
+      }
+    } catch {
+      // keep defaults when local storage contains old or invalid data
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "boxplanner-default-class-schedules",
+      JSON.stringify(defaultSchedules),
+    );
+  }, [defaultSchedules]);
 
   const sessions = useMemo(
     () =>
@@ -544,11 +692,71 @@ export function ClassesContent() {
 
   const handleEditorSave = async (
     classSessionId: string,
-    input: UpdateClassSessionInput,
+    input: ClassSessionFullPlanInput,
   ) => {
-    await updateClassSession.mutateAsync({
+    return updateClassSessionFullPlan.mutateAsync({
       classSessionId,
       input,
+    });
+  };
+
+  const handleApplySchedule = async (schedule: DefaultSchedule) => {
+    if (!scheduleSession) {
+      return;
+    }
+
+    const startsAt = getNextDateForSchedule(schedule);
+    const endsAt = getScheduleEndDate(startsAt, schedule);
+    const updatePromise = updateClassSession.mutateAsync({
+      classSessionId: scheduleSession.id,
+      input: {
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+      },
+    });
+
+    toast.promise(updatePromise, {
+      loading: "programando clase...",
+      success: "clase programada",
+      error: "no se pudo programar la clase",
+    });
+
+    try {
+      await updatePromise;
+      setScheduleSession(null);
+    } catch {
+      // react query keeps the detailed error for the inline state
+    }
+  };
+
+  const handleAddDefaultSchedule = () => {
+    const weekday = Number.parseInt(scheduleForm.weekday, 10);
+
+    if (
+      !Number.isFinite(weekday) ||
+      !scheduleForm.startTime ||
+      !scheduleForm.endTime
+    ) {
+      return;
+    }
+
+    setDefaultSchedules((currentSchedules) => [
+      ...currentSchedules,
+      {
+        id: createScheduleId(),
+        weekday,
+        startTime: scheduleForm.startTime,
+        endTime: scheduleForm.endTime,
+        label:
+          scheduleForm.label.trim() ||
+          `${getWeekdayLabel(weekday)} ${scheduleForm.startTime}`,
+      },
+    ]);
+    setScheduleForm({
+      weekday: "2",
+      startTime: "21:00",
+      endTime: "22:00",
+      label: "",
     });
   };
 
@@ -647,9 +855,9 @@ export function ClassesContent() {
         open={Boolean(currentEditingSession)}
         organizationId={classesOrganizationId}
         session={currentEditingSession}
-        isSaving={updateClassSession.isPending}
-        saveError={updateClassSession.error}
-        onSaveClass={handleEditorSave}
+        isSaving={updateClassSessionFullPlan.isPending}
+        saveError={updateClassSessionFullPlan.error}
+        onSaveFullPlan={handleEditorSave}
         onOpenChange={(open) => {
           if (!open) {
             setEditingSession(null);
@@ -696,6 +904,154 @@ export function ClassesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={Boolean(scheduleSession)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setScheduleSession(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl lg:p-7">
+          <DialogHeader>
+            <DialogTitle>programar clase</DialogTitle>
+            <DialogDescription>
+              usa un horario habitual para colocar la proxima sesion.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            {scheduleSession ? (
+              <div className="rounded-md border border-border/70 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+                {scheduleSession.title}
+              </div>
+            ) : null}
+
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">
+                horarios habituales
+              </h3>
+              <div className="grid gap-2">
+                {defaultSchedules.map((schedule) => (
+                  <div
+                    key={schedule.id}
+                    className="flex flex-col gap-2 rounded-md border border-border/70 bg-card/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {schedule.label}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {getWeekdayLabel(schedule.weekday)} {schedule.startTime}{" "}
+                        - {schedule.endTime}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => void handleApplySchedule(schedule)}
+                        disabled={updateClassSession.isPending}
+                      >
+                        usar horario
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="bg-transparent text-destructive hover:text-destructive"
+                        onClick={() =>
+                          setDefaultSchedules((currentSchedules) =>
+                            currentSchedules.filter(
+                              (currentSchedule) =>
+                                currentSchedule.id !== schedule.id,
+                            ),
+                          )
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-md border border-border/70 bg-background/45 p-4">
+              <h3 className="text-sm font-semibold text-foreground">
+                nuevo horario habitual
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>dia</Label>
+                  <Select
+                    value={scheduleForm.weekday}
+                    onValueChange={(weekday) =>
+                      setScheduleForm({ ...scheduleForm, weekday })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {weekdayOptions.map((weekday) => (
+                        <SelectItem
+                          key={weekday.value}
+                          value={String(weekday.value)}
+                        >
+                          {weekday.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>label</Label>
+                  <Input
+                    value={scheduleForm.label}
+                    onChange={(event) =>
+                      setScheduleForm({
+                        ...scheduleForm,
+                        label: event.target.value,
+                      })
+                    }
+                    placeholder="martes noche"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>hora inicio</Label>
+                  <Input
+                    type="time"
+                    value={scheduleForm.startTime}
+                    onChange={(event) =>
+                      setScheduleForm({
+                        ...scheduleForm,
+                        startTime: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>hora fin</Label>
+                  <Input
+                    type="time"
+                    value={scheduleForm.endTime}
+                    onChange={(event) =>
+                      setScheduleForm({
+                        ...scheduleForm,
+                        endTime: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <Button type="button" onClick={handleAddDefaultSchedule}>
+                <Plus className="h-4 w-4" />
+                anadir horario
+              </Button>
+            </section>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)] xl:items-start">
         <Card
@@ -907,6 +1263,7 @@ export function ClassesContent() {
                   isUpdatingEnabled={isUpdatingThisEnabled}
                   canEdit={canManageClasses}
                   onEdit={() => setEditingSession(session)}
+                  onSchedule={() => setScheduleSession(session)}
                   onToggleEnabled={() =>
                     void handleEnabledChange(
                       session.id,

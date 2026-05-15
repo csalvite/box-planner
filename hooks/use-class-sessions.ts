@@ -15,9 +15,11 @@ import {
   reorderClassSessionSections,
   updateClassSession,
   updateClassSessionEnabled,
+  updateClassSessionFullPlan,
   updateClassSessionSection,
   updateClassSessionSectionExercise,
   updateClassSessionStatus,
+  type ClassSessionFullPlanInput,
   type ClassSessionSectionExerciseInput,
   type ClassSessionSectionInput,
   type ClassSessionAttendanceResult,
@@ -114,6 +116,45 @@ export function useUpdateClassSession(organizationId?: string | null) {
       );
       await queryClient.invalidateQueries({
         queryKey: classSessionsBaseQueryKey(organizationId),
+      });
+    },
+  });
+}
+
+export function useUpdateClassSessionFullPlan(
+  organizationId?: string | null,
+) {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      classSessionId,
+      input,
+    }: {
+      classSessionId: string;
+      input: ClassSessionFullPlanInput;
+    }) =>
+      updateClassSessionFullPlan(
+        organizationId as string,
+        classSessionId,
+        input,
+        accessToken,
+      ),
+    onSuccess: async (session) => {
+      queryClient.setQueriesData<ClassSession[]>(
+        { queryKey: classSessionsBaseQueryKey(organizationId) },
+        (sessions = []) =>
+          sessions.map((currentSession) =>
+            currentSession.id === session.id ? session : currentSession,
+          ),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: classSessionsBaseQueryKey(organizationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: classSessionsBaseQueryKey(organizationId),
+        type: "active",
       });
     },
   });

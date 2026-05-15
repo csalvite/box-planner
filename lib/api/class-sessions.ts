@@ -136,6 +136,34 @@ export interface ClassSessionSectionExerciseInput {
 export type UpdateClassSessionSectionExerciseInput =
   Partial<ClassSessionSectionExerciseInput>;
 
+export interface ClassSessionFullPlanInput {
+  title: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  targetDurationMinutes?: number | null;
+  notes?: string | null;
+  status?: ClassSessionStatusCode;
+  sections: Array<{
+    id?: string;
+    name: string;
+    objective?: string | null;
+    estimatedDurationMinutes?: number | null;
+    notes?: string | null;
+    orderIndex: number;
+    exercises: Array<{
+      id?: string;
+      exerciseId?: string | null;
+      name: string;
+      description?: string | null;
+      durationSec?: number | null;
+      reps?: number | null;
+      restSec?: number | null;
+      notes?: string | null;
+      orderIndex: number;
+    }>;
+  }>;
+}
+
 export interface ReorderClassSessionSectionExercisesInput {
   order: Array<{
     exerciseId: string;
@@ -516,6 +544,25 @@ export async function updateClassSession(
     {
       accessToken,
       method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+
+  return unwrapClassSession(response);
+}
+
+export async function updateClassSessionFullPlan(
+  organizationId: string,
+  classSessionId: string,
+  input: ClassSessionFullPlanInput,
+  accessToken?: string | null,
+) {
+  const response = await apiFetch<ClassSessionResponse>(
+    `/class-sessions/${classSessionId}/full-plan`,
+    {
+      accessToken,
+      headers: organizationHeaders(organizationId),
+      method: "PUT",
       body: JSON.stringify(input),
     },
   );

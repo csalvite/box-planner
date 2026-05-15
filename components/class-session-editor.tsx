@@ -5,19 +5,29 @@ import { toast } from "sonner";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Dumbbell,
   FileText,
-  GripVertical,
   Library,
   ListRestart,
-  Pencil,
   Plus,
   Save,
   Search,
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,17 +52,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  useAddExerciseToClassSessionSection,
-  useCreateClassSessionSection,
-  useDeleteClassSessionSection,
-  useDeleteClassSessionSectionExercise,
-  useReorderClassSessionSectionExercises,
-  useReorderClassSessionSections,
-  useUpdateClassSessionSection,
-  useUpdateClassSessionSectionExercise,
-} from "@/hooks/use-class-sessions";
 import { useExercises } from "@/hooks/use-exercises";
+import type {
+  ClassSession,
+  ClassSessionFullPlanInput,
+  ClassSessionSection,
+  ClassSessionSectionExercise,
+  ClassSessionStatusCode,
+} from "@/lib/api/class-sessions";
 import type {
   Exercise,
   ExerciseCategory,
@@ -60,13 +67,6 @@ import type {
   ExerciseIntensity,
   ExerciseLevel,
 } from "@/lib/api/exercises";
-import type {
-  ClassSession,
-  ClassSessionSection,
-  ClassSessionSectionExercise,
-  ClassSessionStatusCode,
-  UpdateClassSessionInput,
-} from "@/lib/api/class-sessions";
 import { cn } from "@/lib/utils";
 
 const ALL_VALUE = "all";
@@ -111,23 +111,41 @@ const defaultSectionNames = [
   "Vuelta a la calma",
 ];
 
-interface ClassEditorForm {
+interface EditableExercise {
+  id: string;
+  exerciseId?: string | null;
+  libraryExerciseId?: string | null;
+  libraryExercise?: Exercise | null;
+  name: string;
+  description: string;
+  durationSec: number | null;
+  reps: number | null;
+  restSec: number | null;
+  notes: string;
+  orderIndex: number;
+}
+
+interface EditableSection {
+  id: string;
+  name: string;
+  objective: string;
+  estimatedDurationMinutes: number | null;
+  notes: string;
+  orderIndex: number;
+  exercises: EditableExercise[];
+}
+
+interface EditablePlan {
   title: string;
   startsAt: string;
   endsAt: string;
   targetDurationMinutes: string;
   status: ClassSessionStatusCode;
   notes: string;
+  sections: EditableSection[];
 }
 
-interface SectionDraft {
-  name: string;
-  goal: string;
-  durationMinutes: string;
-  notes: string;
-}
-
-interface ExerciseDraft {
+interface ManualExerciseForm {
   name: string;
   description: string;
   durationMinutes: string;
@@ -135,8 +153,6 @@ interface ExerciseDraft {
   restSec: string;
   notes: string;
 }
-
-interface ManualExerciseForm extends ExerciseDraft {}
 
 const emptyManualExercise: ManualExerciseForm = {
   name: "",
@@ -146,6 +162,14 @@ const emptyManualExercise: ManualExerciseForm = {
   restSec: "",
   notes: "",
 };
+
+function createTempId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isTempId(id: string) {
+  return id.startsWith("tmp-");
+}
 
 function toDateTimeInputValue(value?: string | Date | null) {
   if (!value) {
@@ -174,21 +198,6 @@ function toIsoDateTime(value: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function addMinutesToIsoDateTime(value: string, minutes: string) {
-  const date = new Date(value);
-  const durationMinutes = Number.parseInt(minutes, 10);
-
-  if (
-    Number.isNaN(date.getTime()) ||
-    !Number.isFinite(durationMinutes) ||
-    durationMinutes <= 0
-  ) {
-    return undefined;
-  }
-
-  return new Date(date.getTime() + durationMinutes * 60000).toISOString();
-}
-
 function optionalNumber(value: string) {
   const trimmed = value.trim();
 
@@ -211,56 +220,10 @@ function positiveOptionalNumber(value: string) {
     : undefined;
 }
 
-function getTargetDuration(session: ClassSession) {
-  return session.targetDurationMinutes ?? session.durationMinutes ?? null;
-}
-
-function getCalculatedExerciseDurationMinutes(session: ClassSession) {
-  const totalDurationSec = (session.sections ?? []).reduce(
-    (classTotal, section) =>
-      classTotal +
-      (section.exercises ?? []).reduce(
-        (sectionTotal, exercise) => sectionTotal + (exercise.durationSec ?? 0),
-        0,
-      ),
-    0,
-  );
-
-  return Math.round(totalDurationSec / 60);
-}
-
-function getEstimatedDuration(session: ClassSession) {
-  return (
-    session.estimatedDurationMinutes ??
-    getCalculatedExerciseDurationMinutes(session)
-  );
-}
-
-function formatDurationDelta(
-  targetDurationMinutes?: number,
-  estimatedDurationMinutes?: number,
-) {
-  if (targetDurationMinutes === undefined) {
-    return "define objetivo";
-  }
-
-  const delta = targetDurationMinutes - (estimatedDurationMinutes ?? 0);
-
-  if (delta > 0) {
-    return `faltan ${delta} min`;
-  }
-
-  if (delta < 0) {
-    return `sobran ${Math.abs(delta)} min`;
-  }
-
-  return "en objetivo";
-}
-
 function minutesToSeconds(value: string) {
   const minutes = optionalNumber(value);
 
-  return minutes === undefined ? undefined : minutes * 60;
+  return minutes === undefined ? null : minutes * 60;
 }
 
 function secondsToMinutes(value?: number | null) {
@@ -301,68 +264,23 @@ function getExerciseSourceLabel(exercise: Exercise) {
     : "BoxPlanner";
 }
 
-function formatClassDate(value?: string | Date | null) {
-  if (!value) {
-    return "sin programar";
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "fecha pendiente";
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function getTargetDuration(session: ClassSession) {
+  return session.targetDurationMinutes ?? session.durationMinutes ?? null;
 }
 
-function sectionToDraft(section: ClassSessionSection): SectionDraft {
-  return {
-    name: section.name,
-    goal: section.objective ?? section.goal ?? "",
-    durationMinutes:
-      section.estimatedDurationMinutes !== undefined &&
-      section.estimatedDurationMinutes !== null
-        ? String(section.estimatedDurationMinutes)
-        : section.durationMinutes !== undefined && section.durationMinutes !== null
-          ? String(section.durationMinutes)
-          : secondsToMinutes(section.durationSec),
-    notes: section.notes ?? "",
-  };
+function getSectionObjective(section: ClassSessionSection) {
+  return section.objective ?? section.goal ?? "";
 }
 
-function exerciseToDraft(exercise: ClassSessionSectionExercise): ExerciseDraft {
-  return {
-    name: exercise.name,
-    description: exercise.description ?? "",
-    durationMinutes: secondsToMinutes(exercise.durationSec),
-    reps: exercise.reps ? String(exercise.reps) : "",
-    restSec:
-      exercise.restSec !== undefined && exercise.restSec !== null
-        ? String(exercise.restSec)
-        : "",
-    notes: exercise.notes ?? "",
-  };
+function getSectionTargetMinutes(section: ClassSessionSection) {
+  return (
+    section.estimatedDurationMinutes ??
+    section.durationMinutes ??
+    (section.durationSec ? Math.round(section.durationSec / 60) : null)
+  );
 }
 
-function summarizeExercise(exercise: ClassSessionSectionExercise) {
-  const parts = [
-    exercise.durationSec
-      ? `${Math.round(exercise.durationSec / 60)} min`
-      : null,
-    exercise.reps ? `${exercise.reps} reps` : null,
-    exercise.restSec ? `${exercise.restSec}s descanso` : null,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(" · ") : "sin tiempos";
-}
-
-function getExerciseSourceId(exercise: ClassSessionSectionExercise) {
+function getExerciseSourceId(exercise: EditableExercise) {
   return (
     exercise.exerciseId ??
     exercise.libraryExerciseId ??
@@ -371,35 +289,38 @@ function getExerciseSourceId(exercise: ClassSessionSectionExercise) {
   );
 }
 
-function isLibraryExerciseAddedToSection(
-  section: ClassSessionSection | undefined,
-  exercise: Exercise,
-) {
-  if (!section) {
-    return false;
-  }
+function getSectionExerciseTotalMinutes(section: EditableSection) {
+  const totalSec = section.exercises.reduce(
+    (total, exercise) => total + (exercise.durationSec ?? 0),
+    0,
+  );
 
-  return (section.exercises ?? []).some(
-    (sectionExercise) => getExerciseSourceId(sectionExercise) === exercise.id,
+  return Math.round(totalSec / 60);
+}
+
+function getClassExerciseTotalMinutes(sections: EditableSection[]) {
+  return sections.reduce(
+    (total, section) => total + getSectionExerciseTotalMinutes(section),
+    0,
   );
 }
 
-function getSectionError(error: unknown) {
-  return error instanceof Error ? error.message : null;
-}
+function formatDurationDelta(target?: number | null, estimated?: number) {
+  if (target === undefined || target === null) {
+    return "sin objetivo";
+  }
 
-function buildSectionOrder(sections: ClassSessionSection[]) {
-  return sections.map((section, orderIndex) => ({
-    sectionId: section.id,
-    orderIndex,
-  }));
-}
+  const delta = target - (estimated ?? 0);
 
-function buildExerciseOrder(exercises: ClassSessionSectionExercise[]) {
-  return exercises.map((exercise, orderIndex) => ({
-    exerciseId: exercise.id,
-    orderIndex,
-  }));
+  if (delta > 0) {
+    return `faltan ${delta} min`;
+  }
+
+  if (delta < 0) {
+    return `sobran ${Math.abs(delta)} min`;
+  }
+
+  return "encaja";
 }
 
 function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
@@ -417,6 +338,119 @@ function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
   return nextItems;
 }
 
+function reindexSections(sections: EditableSection[]) {
+  return sections.map((section, orderIndex) => ({
+    ...section,
+    orderIndex,
+  }));
+}
+
+function reindexExercises(exercises: EditableExercise[]) {
+  return exercises.map((exercise, orderIndex) => ({
+    ...exercise,
+    orderIndex,
+  }));
+}
+
+function createEditableExercise(
+  exercise: ClassSessionSectionExercise,
+): EditableExercise {
+  return {
+    id: exercise.id,
+    exerciseId: exercise.exerciseId ?? null,
+    libraryExerciseId: exercise.libraryExerciseId ?? null,
+    libraryExercise: exercise.libraryExercise ?? null,
+    name: exercise.name,
+    description: exercise.description ?? "",
+    durationSec: exercise.durationSec ?? null,
+    reps: exercise.reps ?? null,
+    restSec: exercise.restSec ?? null,
+    notes: exercise.notes ?? "",
+    orderIndex: exercise.orderIndex,
+  };
+}
+
+function createEditableSection(section: ClassSessionSection): EditableSection {
+  return {
+    id: section.id,
+    name: section.name,
+    objective: getSectionObjective(section),
+    estimatedDurationMinutes: getSectionTargetMinutes(section),
+    notes: section.notes ?? "",
+    orderIndex: section.orderIndex,
+    exercises: reindexExercises(
+      (section.exercises ?? []).map(createEditableExercise),
+    ),
+  };
+}
+
+function createEditablePlan(session: ClassSession): EditablePlan {
+  return {
+    title: session.title,
+    startsAt: toDateTimeInputValue(session.startsAt),
+    endsAt: toDateTimeInputValue(session.endsAt),
+    targetDurationMinutes: getTargetDuration(session)?.toString() ?? "",
+    status: normalizeStatus(session.status),
+    notes: session.notes ?? "",
+    sections: reindexSections(
+      [...(session.sections ?? [])]
+        .sort((first, second) => first.orderIndex - second.orderIndex)
+        .map(createEditableSection),
+    ),
+  };
+}
+
+function buildFullPlanInput(plan: EditablePlan): ClassSessionFullPlanInput {
+  const startsAt = plan.startsAt ? toIsoDateTime(plan.startsAt) : null;
+  const endsAt = plan.endsAt ? toIsoDateTime(plan.endsAt) : null;
+
+  return {
+    title: plan.title.trim(),
+    startsAt,
+    endsAt,
+    targetDurationMinutes:
+      positiveOptionalNumber(plan.targetDurationMinutes) ?? null,
+    notes: plan.notes.trim() || null,
+    status: plan.status,
+    sections: reindexSections(plan.sections).map((section) => ({
+      ...(isTempId(section.id) ? {} : { id: section.id }),
+      name: section.name.trim(),
+      objective: section.objective.trim() || null,
+      estimatedDurationMinutes: section.estimatedDurationMinutes,
+      notes: section.notes.trim() || null,
+      orderIndex: section.orderIndex,
+      exercises: reindexExercises(section.exercises).map((exercise) => ({
+        ...(isTempId(exercise.id) ? {} : { id: exercise.id }),
+        exerciseId: getExerciseSourceId(exercise) ?? null,
+        name: exercise.name.trim(),
+        description: exercise.description.trim() || null,
+        durationSec: exercise.durationSec,
+        reps: exercise.reps,
+        restSec: exercise.restSec,
+        notes: exercise.notes.trim() || null,
+        orderIndex: exercise.orderIndex,
+      })),
+    })),
+  };
+}
+
+function serializePlan(plan: EditablePlan) {
+  return JSON.stringify(buildFullPlanInput(plan));
+}
+
+function isLibraryExerciseAddedToSection(
+  section: EditableSection | undefined,
+  exercise: Exercise,
+) {
+  if (!section) {
+    return false;
+  }
+
+  return section.exercises.some(
+    (sectionExercise) => getExerciseSourceId(sectionExercise) === exercise.id,
+  );
+}
+
 export function ClassSessionEditor({
   open,
   organizationId,
@@ -424,7 +458,7 @@ export function ClassSessionEditor({
   isSaving,
   saveError,
   onOpenChange,
-  onSaveClass,
+  onSaveFullPlan,
 }: {
   open: boolean;
   organizationId: string | null;
@@ -432,46 +466,22 @@ export function ClassSessionEditor({
   isSaving: boolean;
   saveError?: Error | null;
   onOpenChange: (open: boolean) => void;
-  onSaveClass: (
+  onSaveFullPlan: (
     classSessionId: string,
-    input: UpdateClassSessionInput,
-  ) => Promise<void>;
+    input: ClassSessionFullPlanInput,
+  ) => Promise<ClassSession>;
 }) {
-  const createSection = useCreateClassSessionSection(organizationId);
-  const updateSection = useUpdateClassSessionSection(organizationId);
-  const deleteSection = useDeleteClassSessionSection(organizationId);
-  const reorderSections = useReorderClassSessionSections(organizationId);
-  const addSectionExercise =
-    useAddExerciseToClassSessionSection(organizationId);
-  const updateSectionExercise =
-    useUpdateClassSessionSectionExercise(organizationId);
-  const deleteSectionExercise =
-    useDeleteClassSessionSectionExercise(organizationId);
-  const reorderSectionExercises =
-    useReorderClassSessionSectionExercises(organizationId);
-
-  const [classForm, setClassForm] = useState<ClassEditorForm>({
-    title: "",
-    startsAt: "",
-    endsAt: "",
-    targetDurationMinutes: "",
-    status: "SCHEDULED",
-    notes: "",
-  });
-  const [sectionDrafts, setSectionDrafts] = useState<
-    Record<string, SectionDraft>
-  >({});
+  const [plan, setPlan] = useState<EditablePlan | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
     null,
   );
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [addExerciseMode, setAddExerciseMode] =
     useState<AddExerciseMode>("library");
-  const [editingExercise, setEditingExercise] = useState<{
-    sectionId: string;
-    exerciseId: string;
-    draft: ExerciseDraft;
-  } | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryCategory, setLibraryCategory] = useState(ALL_VALUE);
   const [libraryLevel, setLibraryLevel] = useState(ALL_VALUE);
@@ -481,6 +491,7 @@ export function ClassSessionEditor({
   const [manualExercise, setManualExercise] =
     useState<ManualExerciseForm>(emptyManualExercise);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
 
   const libraryFilters = useMemo<ExerciseFilters>(
     () => ({
@@ -506,7 +517,7 @@ export function ClassSessionEditor({
     ],
   );
   const libraryQuery = useExercises(organizationId, libraryFilters);
-  const sections = session?.sections ?? [];
+  const sections = plan?.sections ?? [];
   const selectedSection = sections.find(
     (section) => section.id === selectedSectionId,
   );
@@ -515,194 +526,211 @@ export function ClassSessionEditor({
     libraryLevel !== ALL_VALUE ||
     libraryIntensity !== ALL_VALUE ||
     librarySource !== ALL_VALUE;
-  const isMutatingStructure =
-    createSection.isPending ||
-    updateSection.isPending ||
-    deleteSection.isPending ||
-    reorderSections.isPending ||
-    addSectionExercise.isPending ||
-    updateSectionExercise.isPending ||
-    deleteSectionExercise.isPending ||
-    reorderSectionExercises.isPending;
-  const mutationError =
-    createSection.error ??
-    updateSection.error ??
-    deleteSection.error ??
-    reorderSections.error ??
-    addSectionExercise.error ??
-    updateSectionExercise.error ??
-    deleteSectionExercise.error ??
-    reorderSectionExercises.error;
+  const currentSnapshot = plan ? serializePlan(plan) : "";
+  const isDirty = Boolean(plan && currentSnapshot !== savedSnapshot);
+  const targetDurationMinutes = plan
+    ? positiveOptionalNumber(plan.targetDurationMinutes)
+    : undefined;
+  const estimatedDurationMinutes = plan
+    ? getClassExerciseTotalMinutes(plan.sections)
+    : 0;
 
   useEffect(() => {
     if (!session || !open) {
       return;
     }
 
-    setClassForm({
-      title: session.title,
-      startsAt: toDateTimeInputValue(session.startsAt),
-      endsAt: toDateTimeInputValue(session.endsAt),
-      targetDurationMinutes: getTargetDuration(session)?.toString() ?? "",
-      status: normalizeStatus(session.status),
-      notes: session.notes ?? "",
-    });
-    setSectionDrafts(
-      Object.fromEntries(
-        (session.sections ?? []).map((section) => [
-          section.id,
-          sectionToDraft(section),
-        ]),
-      ),
-    );
-    setSelectedSectionId((currentSectionId) => {
-      if (
-        currentSectionId &&
-        session.sections?.some((section) => section.id === currentSectionId)
-      ) {
-        return currentSectionId;
-      }
-
-      return session.sections?.[0]?.id ?? null;
-    });
+    const nextPlan = createEditablePlan(session);
+    setPlan(nextPlan);
+    setSavedSnapshot(serializePlan(nextPlan));
+    setExpandedSectionIds(new Set(nextPlan.sections.map((section) => section.id)));
+    setSelectedSectionId(nextPlan.sections[0]?.id ?? null);
+    setManualExercise(emptyManualExercise);
     setFormError(null);
   }, [open, session]);
 
-  if (!session) {
+  if (!session || !plan) {
     return null;
   }
 
-  const saveClass = async () => {
+  const updatePlan = (updater: (current: EditablePlan) => EditablePlan) => {
+    setPlan((current) => (current ? updater(current) : current));
+  };
+
+  const requestClose = (nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+
+    if (isDirty) {
+      setIsDiscardConfirmOpen(true);
+      return;
+    }
+
+    onOpenChange(false);
+  };
+
+  const savePlan = async () => {
     setFormError(null);
 
-    if (!classForm.title.trim()) {
+    if (!plan.title.trim()) {
       setFormError("El titulo es obligatorio.");
       return;
     }
 
-    const startsAt = classForm.startsAt
-      ? toIsoDateTime(classForm.startsAt)
-      : null;
-    const endsAt = classForm.endsAt
-      ? (toIsoDateTime(classForm.endsAt) ?? undefined)
-      : classForm.startsAt
-        ? addMinutesToIsoDateTime(
-            classForm.startsAt,
-            classForm.targetDurationMinutes,
-          )
-        : null;
-    const targetDurationMinutes = positiveOptionalNumber(
-      classForm.targetDurationMinutes,
-    );
+    const invalidSection = plan.sections.find((section) => !section.name.trim());
 
-    if ((classForm.startsAt && !startsAt) || (classForm.endsAt && !endsAt)) {
-      setFormError("Revisa las fechas de la clase.");
+    if (invalidSection) {
+      setFormError("Todas las secciones necesitan nombre.");
+      setExpandedSectionIds((current) => new Set([...current, invalidSection.id]));
       return;
     }
 
-    if (classForm.endsAt && !classForm.startsAt) {
-      setFormError("Para indicar fin, selecciona tambien un inicio.");
+    if (plan.startsAt && !toIsoDateTime(plan.startsAt)) {
+      setFormError("Revisa la fecha de inicio.");
       return;
     }
 
-    const savePromise = onSaveClass(session.id, {
-      title: classForm.title.trim(),
-      startsAt,
-      endsAt: endsAt ?? null,
-      targetDurationMinutes,
-      notes: classForm.notes.trim() || undefined,
-      status: classForm.status,
-    });
+    if (plan.endsAt && !toIsoDateTime(plan.endsAt)) {
+      setFormError("Revisa la fecha de fin.");
+      return;
+    }
+
+    const input = buildFullPlanInput(plan);
+    const savePromise = onSaveFullPlan(session.id, input);
 
     toast.promise(savePromise, {
-      loading: "guardando clase...",
-      success: "clase guardada",
-      error: "no se pudo guardar la clase",
+      loading: "guardando cambios...",
+      success: "clase actualizada",
+      error: "no se pudo actualizar la clase",
     });
 
     try {
-      await savePromise;
+      const savedSession = await savePromise;
+      const nextPlan = createEditablePlan(savedSession);
+      setPlan(nextPlan);
+      setSavedSnapshot(serializePlan(nextPlan));
+      setExpandedSectionIds(
+        (current) =>
+          new Set(
+            nextPlan.sections
+              .filter((section) => current.has(section.id))
+              .map((section) => section.id),
+          ),
+      );
     } catch {
       // react-query keeps the mutation error for the inline state
     }
   };
 
-  const handleCreateSection = async (name = "Nueva seccion") => {
-    const createPromise = createSection.mutateAsync({
-      classSessionId: session.id,
-      input: {
-        name,
-      },
-    });
+  const addSection = (name = "Nueva seccion") => {
+    const section: EditableSection = {
+      id: createTempId("tmp-section"),
+      name,
+      objective: "",
+      estimatedDurationMinutes: null,
+      notes: "",
+      orderIndex: sections.length,
+      exercises: [],
+    };
 
-    toast.promise(createPromise, {
-      loading: "creando seccion...",
-      success: "seccion creada",
-      error: "no se pudo crear la seccion",
-    });
-
-    try {
-      const section = await createPromise;
-      setSelectedSectionId(section.id);
-    } catch {
-      // handled by toast and inline mutation error
-    }
+    updatePlan((current) => ({
+      ...current,
+      sections: reindexSections([...current.sections, section]),
+    }));
+    setExpandedSectionIds((current) => new Set([...current, section.id]));
+    setSelectedSectionId(section.id);
   };
 
-  const handleSaveSection = async (section: ClassSessionSection) => {
-    const draft = sectionDrafts[section.id] ?? sectionToDraft(section);
-
-    if (!draft.name.trim()) {
-      setFormError("La seccion necesita nombre.");
-      return;
-    }
-
-    const updatePromise = updateSection.mutateAsync({
-      sectionId: section.id,
-      input: {
-        name: draft.name.trim(),
-        objective: draft.goal.trim() || null,
-        notes: draft.notes.trim() || null,
-        estimatedDurationMinutes:
-          optionalNumber(draft.durationMinutes) ?? null,
-      },
-    });
-
-    toast.promise(updatePromise, {
-      loading: "guardando seccion...",
-      success: "seccion guardada",
-      error: "no se pudo guardar la seccion",
-    });
-
-    await updatePromise.catch(() => undefined);
+  const updateSection = (
+    sectionId: string,
+    patch: Partial<Omit<EditableSection, "id" | "exercises">>,
+  ) => {
+    updatePlan((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === sectionId ? { ...section, ...patch } : section,
+      ),
+    }));
   };
 
-  const handleDeleteSection = async (sectionId: string) => {
-    const deletePromise = deleteSection.mutateAsync(sectionId);
-
-    toast.promise(deletePromise, {
-      loading: "borrando seccion...",
-      success: "seccion borrada",
-      error: "no se pudo borrar la seccion",
+  const deleteSection = (sectionId: string) => {
+    updatePlan((current) => ({
+      ...current,
+      sections: reindexSections(
+        current.sections.filter((section) => section.id !== sectionId),
+      ),
+    }));
+    setExpandedSectionIds((current) => {
+      const next = new Set(current);
+      next.delete(sectionId);
+      return next;
     });
-
-    await deletePromise.catch(() => undefined);
+    setSelectedSectionId((current) => (current === sectionId ? null : current));
   };
 
-  const handleMoveSection = async (sectionIndex: number, direction: -1 | 1) => {
-    const nextSections = moveItem(sections, sectionIndex, direction);
-    const reorderPromise = reorderSections.mutateAsync({
-      classSessionId: session.id,
-      input: { order: buildSectionOrder(nextSections) },
-    });
+  const moveSection = (sectionIndex: number, direction: -1 | 1) => {
+    updatePlan((current) => ({
+      ...current,
+      sections: reindexSections(moveItem(current.sections, sectionIndex, direction)),
+    }));
+  };
 
-    toast.promise(reorderPromise, {
-      loading: "reordenando secciones...",
-      success: "secciones reordenadas",
-      error: "no se pudo reordenar",
-    });
+  const updateExercise = (
+    sectionId: string,
+    exerciseId: string,
+    patch: Partial<EditableExercise>,
+  ) => {
+    updatePlan((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              exercises: section.exercises.map((exercise) =>
+                exercise.id === exerciseId ? { ...exercise, ...patch } : exercise,
+              ),
+            }
+          : section,
+      ),
+    }));
+  };
 
-    await reorderPromise.catch(() => undefined);
+  const deleteExercise = (sectionId: string, exerciseId: string) => {
+    updatePlan((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              exercises: reindexExercises(
+                section.exercises.filter((exercise) => exercise.id !== exerciseId),
+              ),
+            }
+          : section,
+      ),
+    }));
+  };
+
+  const moveExercise = (
+    sectionId: string,
+    exerciseIndex: number,
+    direction: -1 | 1,
+  ) => {
+    updatePlan((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              exercises: reindexExercises(
+                moveItem(section.exercises, exerciseIndex, direction),
+              ),
+            }
+          : section,
+      ),
+    }));
   };
 
   const openLibraryForSection = (sectionId: string) => {
@@ -712,39 +740,41 @@ export function ClassSessionEditor({
     setIsLibraryOpen(true);
   };
 
-  const handleAddLibraryExercise = async (exercise: Exercise) => {
-    if (!selectedSectionId) {
+  const addLibraryExercise = (exercise: Exercise) => {
+    if (!selectedSectionId || isLibraryExerciseAddedToSection(selectedSection, exercise)) {
       return;
     }
 
-    const selected = sections.find(
-      (section) => section.id === selectedSectionId,
-    );
-    const addPromise = addSectionExercise.mutateAsync({
-      sectionId: selectedSectionId,
-      input: {
-        exerciseId: exercise.id,
-        name: exercise.name,
-        description: getExerciseDescription(exercise) || undefined,
-        durationSec: exercise.averageDurationMinutes
-          ? exercise.averageDurationMinutes * 60
-          : undefined,
-        notes: exercise.coachNotes ?? undefined,
-        restSec: 0,
-        orderIndex: selected?.exercises?.length ?? 0,
-      },
-    });
+    const newExercise: EditableExercise = {
+      id: createTempId("tmp-exercise"),
+      exerciseId: exercise.id,
+      libraryExerciseId: exercise.id,
+      libraryExercise: exercise,
+      name: exercise.name,
+      description: getExerciseDescription(exercise),
+      durationSec: exercise.averageDurationMinutes
+        ? exercise.averageDurationMinutes * 60
+        : null,
+      reps: null,
+      restSec: 0,
+      notes: exercise.coachNotes ?? "",
+      orderIndex: selectedSection?.exercises.length ?? 0,
+    };
 
-    toast.promise(addPromise, {
-      loading: "anadiendo ejercicio...",
-      success: "ejercicio anadido",
-      error: "no se pudo anadir el ejercicio",
-    });
-
-    await addPromise.catch(() => undefined);
+    updatePlan((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === selectedSectionId
+          ? {
+              ...section,
+              exercises: reindexExercises([...section.exercises, newExercise]),
+            }
+          : section,
+      ),
+    }));
   };
 
-  const handleManualAdd = async () => {
+  const addManualExercise = () => {
     if (!selectedSectionId) {
       return;
     }
@@ -754,182 +784,127 @@ export function ClassSessionEditor({
       return;
     }
 
-    const selected = sections.find(
-      (section) => section.id === selectedSectionId,
-    );
-    const addPromise = addSectionExercise.mutateAsync({
-      sectionId: selectedSectionId,
-      input: {
-        name: manualExercise.name.trim(),
-        description: manualExercise.description.trim() || undefined,
-        durationSec: minutesToSeconds(manualExercise.durationMinutes),
-        reps: optionalNumber(manualExercise.reps),
-        restSec: optionalNumber(manualExercise.restSec),
-        notes: manualExercise.notes.trim() || undefined,
-        orderIndex: selected?.exercises?.length ?? 0,
-      },
-    });
+    const newExercise: EditableExercise = {
+      id: createTempId("tmp-exercise"),
+      exerciseId: null,
+      libraryExerciseId: null,
+      libraryExercise: null,
+      name: manualExercise.name.trim(),
+      description: manualExercise.description.trim(),
+      durationSec: minutesToSeconds(manualExercise.durationMinutes),
+      reps: optionalNumber(manualExercise.reps) ?? null,
+      restSec: optionalNumber(manualExercise.restSec) ?? null,
+      notes: manualExercise.notes.trim(),
+      orderIndex: selectedSection?.exercises.length ?? 0,
+    };
 
-    toast.promise(addPromise, {
-      loading: "anadiendo ejercicio manual...",
-      success: "ejercicio anadido",
-      error: "no se pudo anadir el ejercicio",
-    });
-
-    try {
-      await addPromise;
-      setManualExercise(emptyManualExercise);
-    } catch {
-      // handled by toast and inline mutation error
-    }
+    updatePlan((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === selectedSectionId
+          ? {
+              ...section,
+              exercises: reindexExercises([...section.exercises, newExercise]),
+            }
+          : section,
+      ),
+    }));
+    setManualExercise(emptyManualExercise);
+    setAddExerciseMode("library");
   };
 
-  const handleSaveExercise = async () => {
-    if (!editingExercise) {
-      return;
-    }
-
-    if (!editingExercise.draft.name.trim()) {
-      setFormError("El ejercicio necesita nombre.");
-      return;
-    }
-
-    const updatePromise = updateSectionExercise.mutateAsync({
-      exerciseId: editingExercise.exerciseId,
-      input: {
-        name: editingExercise.draft.name.trim(),
-        description: editingExercise.draft.description.trim() || null,
-        durationSec:
-          minutesToSeconds(editingExercise.draft.durationMinutes) ?? null,
-        reps: optionalNumber(editingExercise.draft.reps) ?? null,
-        restSec: optionalNumber(editingExercise.draft.restSec) ?? null,
-        notes: editingExercise.draft.notes.trim() || null,
-      },
+  const toggleSection = (sectionId: string) => {
+    setExpandedSectionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
     });
-
-    toast.promise(updatePromise, {
-      loading: "guardando ejercicio...",
-      success: "ejercicio guardado",
-      error: "no se pudo guardar el ejercicio",
-    });
-
-    try {
-      await updatePromise;
-      setEditingExercise(null);
-    } catch {
-      // handled by toast and inline mutation error
-    }
   };
 
-  const handleDeleteExercise = async (exerciseId: string) => {
-    const deletePromise = deleteSectionExercise.mutateAsync(exerciseId);
-
-    toast.promise(deletePromise, {
-      loading: "quitando ejercicio...",
-      success: "ejercicio quitado",
-      error: "no se pudo quitar el ejercicio",
-    });
-
-    await deletePromise.catch(() => undefined);
+  const expandAll = () => {
+    setExpandedSectionIds(new Set(sections.map((section) => section.id)));
   };
 
-  const handleMoveExercise = async (
-    section: ClassSessionSection,
-    exerciseIndex: number,
-    direction: -1 | 1,
-  ) => {
-    const exercises = section.exercises ?? [];
-    const nextExercises = moveItem(exercises, exerciseIndex, direction);
-    const reorderPromise = reorderSectionExercises.mutateAsync({
-      sectionId: section.id,
-      input: { order: buildExerciseOrder(nextExercises) },
-    });
-
-    toast.promise(reorderPromise, {
-      loading: "reordenando ejercicios...",
-      success: "ejercicios reordenados",
-      error: "no se pudo reordenar",
-    });
-
-    await reorderPromise.catch(() => undefined);
+  const collapseAll = () => {
+    setExpandedSectionIds(new Set());
   };
-
-  const targetDurationMinutes = positiveOptionalNumber(
-    classForm.targetDurationMinutes,
-  );
-  const estimatedDurationMinutes = getEstimatedDuration(session);
-  const durationDeltaLabel = formatDurationDelta(
-    targetDurationMinutes,
-    estimatedDurationMinutes,
-  );
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-5xl xl:max-w-6xl lg:p-7">
+      <Dialog open={open} onOpenChange={requestClose}>
+        <DialogContent className="grid-rows-[auto_minmax(0,1fr)] gap-4 sm:!max-h-[92vh] sm:!w-[95vw] sm:!max-w-[95vw] xl:!max-w-7xl lg:p-7">
           <DialogHeader>
-            <DialogTitle>preparar clase</DialogTitle>
-            <DialogDescription>
-              crea secciones y anade ejercicios sin pasar por bloques ni clases
-              tipo.
-            </DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <DialogTitle>preparar clase</DialogTitle>
+                <DialogDescription>
+                  edita la clase completa y guarda todo en un unico cambio.
+                </DialogDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {isDirty ? (
+                  <Badge variant="secondary">cambios sin guardar</Badge>
+                ) : (
+                  <Badge variant="outline">guardado</Badge>
+                )}
+                <Badge variant="outline">{sections.length} secciones</Badge>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)] lg:items-start">
-            <section className="space-y-4 rounded-lg border border-border/80 bg-background/45 p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="bg-primary/10 text-primary">
-                  {formatClassDate(session.startsAt)}
-                </Badge>
-                <Badge variant="secondary">
-                  {normalizeStatus(session.status)}
-                </Badge>
-              </div>
+          <div className="min-h-0 space-y-5 overflow-y-auto overflow-x-hidden pr-1">
+            <section className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)]">
+              <div className="space-y-4 rounded-md border border-border/80 bg-background/45 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="editor-class-title">titulo</Label>
+                    <Input
+                      id="editor-class-title"
+                      value={plan.title}
+                      onChange={(event) =>
+                        updatePlan((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="editor-class-title">titulo</Label>
-                  <Input
-                    id="editor-class-title"
-                    value={classForm.title}
-                    onChange={(event) =>
-                      setClassForm({ ...classForm, title: event.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="editor-class-start">inicio opcional</Label>
+                    <Label htmlFor="editor-class-start">inicio</Label>
                     <Input
                       id="editor-class-start"
                       type="datetime-local"
-                      value={classForm.startsAt}
+                      value={plan.startsAt}
                       onChange={(event) =>
-                        setClassForm({
-                          ...classForm,
+                        updatePlan((current) => ({
+                          ...current,
                           startsAt: event.target.value,
-                        })
+                        }))
                       }
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="editor-class-end">fin opcional</Label>
+                    <Label htmlFor="editor-class-end">fin</Label>
                     <Input
                       id="editor-class-end"
                       type="datetime-local"
-                      value={classForm.endsAt}
+                      value={plan.endsAt}
                       onChange={(event) =>
-                        setClassForm({
-                          ...classForm,
+                        updatePlan((current) => ({
+                          ...current,
                           endsAt: event.target.value,
-                        })
+                        }))
                       }
                     />
                   </div>
 
-                  <div className="space-y-2 sm:col-span-2 lg:col-span-1 xl:col-span-2">
+                  <div className="space-y-2">
                     <Label htmlFor="editor-class-duration">
                       duracion objetivo min.
                     </Label>
@@ -937,14 +912,50 @@ export function ClassSessionEditor({
                       id="editor-class-duration"
                       type="number"
                       min="1"
-                      value={classForm.targetDurationMinutes}
+                      value={plan.targetDurationMinutes}
                       onChange={(event) =>
-                        setClassForm({
-                          ...classForm,
+                        updatePlan((current) => ({
+                          ...current,
                           targetDurationMinutes: event.target.value,
-                        })
+                        }))
                       }
-                      placeholder="60"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="editor-class-status">estado</Label>
+                    <Select
+                      value={plan.status}
+                      onValueChange={(status) =>
+                        updatePlan((current) => ({
+                          ...current,
+                          status: status as ClassSessionStatusCode,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="editor-class-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SCHEDULED">programada</SelectItem>
+                        <SelectItem value="COMPLETED">completada</SelectItem>
+                        <SelectItem value="CANCELLED">cancelada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="editor-class-notes">notas</Label>
+                    <Textarea
+                      id="editor-class-notes"
+                      rows={3}
+                      value={plan.notes}
+                      onChange={(event) =>
+                        updatePlan((current) => ({
+                          ...current,
+                          notes: event.target.value,
+                        }))
+                      }
                     />
                   </div>
                 </div>
@@ -957,388 +968,412 @@ export function ClassSessionEditor({
                       : "sin definir"}
                   </span>
                   <span>estimado actual: {estimatedDurationMinutes} min</span>
-                  <span>diferencia: {durationDeltaLabel}</span>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="editor-class-status">estado</Label>
-                  <Select
-                    value={classForm.status}
-                    onValueChange={(status) =>
-                      setClassForm({
-                        ...classForm,
-                        status: status as ClassSessionStatusCode,
-                      })
-                    }
-                  >
-                    <SelectTrigger id="editor-class-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SCHEDULED">programada</SelectItem>
-                      <SelectItem value="COMPLETED">completada</SelectItem>
-                      <SelectItem value="CANCELLED">cancelada</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="editor-class-notes">notas</Label>
-                  <Textarea
-                    id="editor-class-notes"
-                    rows={4}
-                    value={classForm.notes}
-                    onChange={(event) =>
-                      setClassForm({ ...classForm, notes: event.target.value })
-                    }
-                  />
+                  <span>
+                    diferencia:{" "}
+                    {formatDurationDelta(
+                      targetDurationMinutes,
+                      estimatedDurationMinutes,
+                    )}
+                  </span>
                 </div>
               </div>
 
-              {(formError || saveError || mutationError) && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {formError ??
-                    saveError?.message ??
-                    getSectionError(mutationError)}
-                </p>
-              )}
-
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                disabled={isSaving}
-                onClick={() => void saveClass()}
-              >
-                <Save className="h-4 w-4" />
-                {isSaving ? "guardando..." : "guardar clase"}
-              </Button>
-            </section>
-
-            <section className="space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">
-                    secciones
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    cada seccion acepta cualquier ejercicio de la biblioteca.
-                  </p>
+              <div className="space-y-3 rounded-md border border-border/80 bg-background/45 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      secciones
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      plegables y editables hasta guardar cambios.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={collapseAll}
+                    >
+                      plegar todas
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={expandAll}
+                    >
+                      desplegar todas
+                    </Button>
+                  </div>
                 </div>
+
+                {sections.length === 0 ? (
+                  <div className="space-y-3 rounded-md border border-dashed border-border/70 bg-card/45 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      crea una seccion personalizada o usa una habitual.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {defaultSectionNames.map((sectionName) => (
+                        <Button
+                          key={sectionName}
+                          type="button"
+                          variant="outline"
+                          className="bg-transparent"
+                          onClick={() => addSection(sectionName)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {sectionName}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <Button
                   type="button"
-                  disabled={isMutatingStructure}
-                  onClick={() => void handleCreateSection()}
+                  className="w-full sm:w-auto"
+                  onClick={() => addSection()}
                 >
                   <Plus className="h-4 w-4" />
                   anadir seccion
                 </Button>
               </div>
+            </section>
 
-              {sections.length === 0 ? (
-                <div className="space-y-3 rounded-lg border border-dashed border-border/70 bg-card/45 p-4">
-                  <p className="text-sm text-muted-foreground">
-                    crea una seccion personalizada o usa una de las habituales.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {defaultSectionNames.map((sectionName) => (
-                      <Button
-                        key={sectionName}
+            <section className="space-y-3">
+              {sections.map((section, sectionIndex) => {
+                const isExpanded = expandedSectionIds.has(section.id);
+                const exerciseMinutes = getSectionExerciseTotalMinutes(section);
+
+                return (
+                  <article
+                    key={section.id}
+                    className="rounded-md border border-border/80 bg-card/60 p-4 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <button
                         type="button"
-                        variant="outline"
-                        className="bg-transparent"
-                        disabled={createSection.isPending}
-                        onClick={() => void handleCreateSection(sectionName)}
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        onClick={() => toggleSection(section.id)}
                       >
-                        <Plus className="h-4 w-4" />
-                        {sectionName}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="space-y-3">
-                {sections.map((section, sectionIndex) => {
-                  const draft =
-                    sectionDrafts[section.id] ?? sectionToDraft(section);
-                  const exercises = section.exercises ?? [];
-
-                  return (
-                    <article
-                      key={section.id}
-                      className="space-y-4 rounded-lg border border-border/80 bg-card/60 p-4 shadow-sm"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-sm font-semibold text-primary">
-                          {sectionIndex + 1}
+                        <span className="mt-1 text-muted-foreground">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
                         </span>
-                        <div className="min-w-0 flex-1 space-y-3">
-                          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
-                            <div className="space-y-2">
-                              <Label htmlFor={`section-name-${section.id}`}>
-                                nombre
-                              </Label>
-                              <Input
-                                id={`section-name-${section.id}`}
-                                value={draft.name}
-                                onChange={(event) =>
-                                  setSectionDrafts((currentDrafts) => ({
-                                    ...currentDrafts,
-                                    [section.id]: {
-                                      ...draft,
-                                      name: event.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor={`section-duration-${section.id}`}>
-                                duracion min.
-                              </Label>
-                              <Input
-                                id={`section-duration-${section.id}`}
-                                type="number"
-                                min="0"
-                                value={draft.durationMinutes}
-                                onChange={(event) =>
-                                  setSectionDrafts((currentDrafts) => ({
-                                    ...currentDrafts,
-                                    [section.id]: {
-                                      ...draft,
-                                      durationMinutes: event.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label htmlFor={`section-goal-${section.id}`}>
-                                objetivo
-                              </Label>
-                              <Input
-                                id={`section-goal-${section.id}`}
-                                value={draft.goal}
-                                onChange={(event) =>
-                                  setSectionDrafts((currentDrafts) => ({
-                                    ...currentDrafts,
-                                    [section.id]: {
-                                      ...draft,
-                                      goal: event.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor={`section-notes-${section.id}`}>
-                                notas
-                              </Label>
-                              <Input
-                                id={`section-notes-${section.id}`}
-                                value={draft.notes}
-                                onChange={(event) =>
-                                  setSectionDrafts((currentDrafts) => ({
-                                    ...currentDrafts,
-                                    [section.id]: {
-                                      ...draft,
-                                      notes: event.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        <span className="min-w-0 space-y-2">
+                          <span className="block truncate font-semibold text-foreground">
+                            {sectionIndex + 1}. {section.name || "Sin nombre"}
+                          </span>
+                          <span className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline">
+                              {section.estimatedDurationMinutes ?? "-"} min objetivo
+                            </Badge>
+                            <Badge variant="outline">
+                              {section.exercises.length} ejercicios
+                            </Badge>
+                            <Badge variant="outline">
+                              {exerciseMinutes} min ejercicios
+                            </Badge>
+                            {section.objective ? (
+                              <Badge variant="secondary">
+                                {section.objective}
+                              </Badge>
+                            ) : null}
+                            <Badge variant="outline">
+                              {formatDurationDelta(
+                                section.estimatedDurationMinutes,
+                                exerciseMinutes,
+                              )}
+                            </Badge>
+                          </span>
+                        </span>
+                      </button>
 
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
                           variant="outline"
                           className="bg-transparent"
-                          disabled={
-                            sectionIndex === 0 || reorderSections.isPending
-                          }
-                          onClick={() =>
-                            void handleMoveSection(sectionIndex, -1)
-                          }
+                          disabled={sectionIndex === 0}
+                          onClick={() => moveSection(sectionIndex, -1)}
                         >
                           <ArrowUp className="h-4 w-4" />
-                          subir
                         </Button>
                         <Button
                           type="button"
                           variant="outline"
                           className="bg-transparent"
-                          disabled={
-                            sectionIndex === sections.length - 1 ||
-                            reorderSections.isPending
-                          }
-                          onClick={() =>
-                            void handleMoveSection(sectionIndex, 1)
-                          }
+                          disabled={sectionIndex === sections.length - 1}
+                          onClick={() => moveSection(sectionIndex, 1)}
                         >
                           <ArrowDown className="h-4 w-4" />
-                          bajar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="bg-transparent"
-                          disabled={updateSection.isPending}
-                          onClick={() => void handleSaveSection(section)}
-                        >
-                          <Save className="h-4 w-4" />
-                          guardar seccion
-                        </Button>
-                        <Button
-                          type="button"
-                          className="flex-1 sm:flex-none"
-                          onClick={() => openLibraryForSection(section.id)}
-                        >
-                          <Plus className="h-4 w-4" />
-                          anadir ejercicio
                         </Button>
                         <Button
                           type="button"
                           variant="outline"
                           className="bg-transparent text-destructive hover:text-destructive"
-                          disabled={deleteSection.isPending}
-                          onClick={() => void handleDeleteSection(section.id)}
+                          onClick={() => deleteSection(section.id)}
                         >
                           <Trash2 className="h-4 w-4" />
-                          borrar
                         </Button>
                       </div>
+                    </div>
 
-                      <div className="space-y-2">
-                        {exercises.map((exercise, exerciseIndex) => (
-                          <div
-                            key={exercise.id}
-                            className="rounded-md border border-border/70 bg-background/45 p-3"
+                    {isExpanded ? (
+                      <div className="mt-4 space-y-4">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+                          <div className="space-y-2">
+                            <Label htmlFor={`section-name-${section.id}`}>
+                              nombre
+                            </Label>
+                            <Input
+                              id={`section-name-${section.id}`}
+                              value={section.name}
+                              onChange={(event) =>
+                                updateSection(section.id, {
+                                  name: event.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`section-duration-${section.id}`}>
+                              duracion min.
+                            </Label>
+                            <Input
+                              id={`section-duration-${section.id}`}
+                              type="number"
+                              min="0"
+                              value={section.estimatedDurationMinutes ?? ""}
+                              onChange={(event) =>
+                                updateSection(section.id, {
+                                  estimatedDurationMinutes:
+                                    optionalNumber(event.target.value) ?? null,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`section-objective-${section.id}`}>
+                              objetivo
+                            </Label>
+                            <Input
+                              id={`section-objective-${section.id}`}
+                              value={section.objective}
+                              onChange={(event) =>
+                                updateSection(section.id, {
+                                  objective: event.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`section-notes-${section.id}`}>
+                              notas
+                            </Label>
+                            <Input
+                              id={`section-notes-${section.id}`}
+                              value={section.notes}
+                              onChange={(event) =>
+                                updateSection(section.id, {
+                                  notes: event.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            onClick={() => openLibraryForSection(section.id)}
                           >
-                            <div className="flex items-start gap-3">
-                              <GripVertical className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="font-medium text-foreground">
-                                    {exercise.name}
-                                  </h4>
-                                  {getExerciseSourceId(exercise) ? (
-                                    <Badge variant="outline">
-                                      <Library className="h-3 w-3" />
-                                      biblioteca
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="secondary">manual</Badge>
-                                  )}
+                            <Plus className="h-4 w-4" />
+                            anadir ejercicio
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {section.exercises.map((exercise, exerciseIndex) => (
+                            <div
+                              key={exercise.id}
+                              className="rounded-md border border-border/70 bg-background/45 p-3"
+                            >
+                              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_120px_100px_110px]">
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {getExerciseSourceId(exercise) ? (
+                                      <Badge variant="outline">
+                                        <Library className="h-3 w-3" />
+                                        biblioteca
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary">manual</Badge>
+                                    )}
+                                  </div>
+                                  <Input
+                                    value={exercise.name}
+                                    onChange={(event) =>
+                                      updateExercise(section.id, exercise.id, {
+                                        name: event.target.value,
+                                      })
+                                    }
+                                  />
                                 </div>
-                                {exercise.description ? (
-                                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                    {exercise.description}
-                                  </p>
-                                ) : null}
-                                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    {summarizeExercise(exercise)}
-                                  </span>
-                                  {exercise.notes ? (
-                                    <span className="flex items-center gap-1">
-                                      <FileText className="h-3.5 w-3.5" />
-                                      {exercise.notes}
-                                    </span>
-                                  ) : null}
+                                <div className="space-y-2">
+                                  <Label>min.</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={secondsToMinutes(exercise.durationSec)}
+                                    onChange={(event) =>
+                                      updateExercise(section.id, exercise.id, {
+                                        durationSec: minutesToSeconds(
+                                          event.target.value,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>reps</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={exercise.reps ?? ""}
+                                    onChange={(event) =>
+                                      updateExercise(section.id, exercise.id, {
+                                        reps:
+                                          optionalNumber(event.target.value) ??
+                                          null,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>descanso s.</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={exercise.restSec ?? ""}
+                                    onChange={(event) =>
+                                      updateExercise(section.id, exercise.id, {
+                                        restSec:
+                                          optionalNumber(event.target.value) ??
+                                          null,
+                                      })
+                                    }
+                                  />
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="bg-transparent"
-                                disabled={
-                                  exerciseIndex === 0 ||
-                                  reorderSectionExercises.isPending
-                                }
-                                onClick={() =>
-                                  void handleMoveExercise(
-                                    section,
-                                    exerciseIndex,
-                                    -1,
-                                  )
-                                }
-                              >
-                                <ArrowUp className="h-4 w-4" />
-                                subir
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="bg-transparent"
-                                disabled={
-                                  exerciseIndex === exercises.length - 1 ||
-                                  reorderSectionExercises.isPending
-                                }
-                                onClick={() =>
-                                  void handleMoveExercise(
-                                    section,
-                                    exerciseIndex,
-                                    1,
-                                  )
-                                }
-                              >
-                                <ArrowDown className="h-4 w-4" />
-                                bajar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="bg-transparent"
-                                onClick={() =>
-                                  setEditingExercise({
-                                    sectionId: section.id,
-                                    exerciseId: exercise.id,
-                                    draft: exerciseToDraft(exercise),
-                                  })
-                                }
-                              >
-                                <Pencil className="h-4 w-4" />
-                                editar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="bg-transparent text-destructive hover:text-destructive"
-                                disabled={deleteSectionExercise.isPending}
-                                onClick={() =>
-                                  void handleDeleteExercise(exercise.id)
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                quitar
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                <Textarea
+                                  rows={2}
+                                  value={exercise.description}
+                                  placeholder="descripcion"
+                                  onChange={(event) =>
+                                    updateExercise(section.id, exercise.id, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                />
+                                <Textarea
+                                  rows={2}
+                                  value={exercise.notes}
+                                  placeholder="notas"
+                                  onChange={(event) =>
+                                    updateExercise(section.id, exercise.id, {
+                                      notes: event.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
 
-                        {exercises.length === 0 ? (
-                          <div className="rounded-md border border-dashed border-border/70 bg-background/30 px-3 py-4 text-sm text-muted-foreground">
-                            sin ejercicios todavia
-                          </div>
-                        ) : null}
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="bg-transparent"
+                                  disabled={exerciseIndex === 0}
+                                  onClick={() =>
+                                    moveExercise(section.id, exerciseIndex, -1)
+                                  }
+                                >
+                                  <ArrowUp className="h-4 w-4" />
+                                  subir
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="bg-transparent"
+                                  disabled={
+                                    exerciseIndex === section.exercises.length - 1
+                                  }
+                                  onClick={() =>
+                                    moveExercise(section.id, exerciseIndex, 1)
+                                  }
+                                >
+                                  <ArrowDown className="h-4 w-4" />
+                                  bajar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="bg-transparent text-destructive hover:text-destructive"
+                                  onClick={() =>
+                                    deleteExercise(section.id, exercise.id)
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  quitar
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+
+                          {section.exercises.length === 0 ? (
+                            <div className="rounded-md border border-dashed border-border/70 bg-background/30 px-3 py-4 text-sm text-muted-foreground">
+                              sin ejercicios todavia
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
+                    ) : null}
+                  </article>
+                );
+              })}
             </section>
+
+            {(formError || saveError) && (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {formError ?? saveError?.message}
+              </p>
+            )}
+
+            <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-2 border-t border-border/70 bg-card/95 px-1 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {isDirty
+                  ? "hay cambios locales pendientes de guardar"
+                  : "todo esta guardado"}
+              </p>
+              <Button
+                type="button"
+                size="lg"
+                disabled={!isDirty || isSaving}
+                onClick={() => void savePlan()}
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "guardando..." : "guardar cambios"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1377,530 +1412,408 @@ export function ClassSessionEditor({
 
           <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden pr-1">
             <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
-            <section
-              className={cn(
-                "min-w-0 space-y-4 overflow-x-hidden",
-                addExerciseMode === "library" ? "block" : "hidden md:block",
-              )}
-            >
-              <div className="space-y-3 rounded-md border border-border/70 bg-background/45 p-4">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={librarySearch}
-                    onChange={(event) => setLibrarySearch(event.target.value)}
-                    placeholder="buscar ejercicios"
-                    className="h-12 pl-11 text-base"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-3 md:hidden">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 bg-transparent"
-                    onClick={() =>
-                      setAreLibraryFiltersOpen((currentValue) => !currentValue)
-                    }
-                  >
-                    <SlidersHorizontal className="h-4 w-4" />
-                    filtros
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="text-muted-foreground"
-                    disabled={!hasLibraryFilters && !librarySearch.trim()}
-                    onClick={() => {
-                      setLibrarySearch("");
-                      setLibraryCategory(ALL_VALUE);
-                      setLibraryLevel(ALL_VALUE);
-                      setLibraryIntensity(ALL_VALUE);
-                      setLibrarySource(ALL_VALUE);
-                    }}
-                  >
-                    <ListRestart className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div
-                  className={cn(
-                    "grid min-w-0 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap",
-                    areLibraryFiltersOpen ? "grid" : "hidden",
-                  )}
-                >
-                  <Select
-                    value={libraryCategory}
-                    onValueChange={setLibraryCategory}
-                  >
-                    <SelectTrigger className="h-11 min-w-0 lg:w-[160px]">
-                      <SelectValue placeholder="categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_VALUE}>todas</SelectItem>
-                      {categoryOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={libraryLevel} onValueChange={setLibraryLevel}>
-                    <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
-                      <SelectValue placeholder="nivel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_VALUE}>todos</SelectItem>
-                      {levelOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={libraryIntensity}
-                    onValueChange={setLibraryIntensity}
-                  >
-                    <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
-                      <SelectValue placeholder="intensidad" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_VALUE}>todas</SelectItem>
-                      {intensityOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={librarySource}
-                    onValueChange={setLibrarySource}
-                  >
-                    <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
-                      <SelectValue placeholder="origen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_VALUE}>todos</SelectItem>
-                      <SelectItem value={GLOBAL_SOURCE_VALUE}>
-                        BoxPlanner
-                      </SelectItem>
-                      <SelectItem value={LOCAL_SOURCE_VALUE}>
-                        Mi gimnasio
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="hidden items-center justify-between gap-3 md:flex">
-                  <p className="text-sm text-muted-foreground">
-                    {(libraryQuery.data ?? []).length} ejercicios disponibles
-                  </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground"
-                    disabled={!hasLibraryFilters && !librarySearch.trim()}
-                    onClick={() => {
-                      setLibrarySearch("");
-                      setLibraryCategory(ALL_VALUE);
-                      setLibraryLevel(ALL_VALUE);
-                      setLibraryIntensity(ALL_VALUE);
-                      setLibrarySource(ALL_VALUE);
-                    }}
-                  >
-                    <ListRestart className="h-4 w-4" />
-                    limpiar
-                  </Button>
-                </div>
-              </div>
-
-              {libraryQuery.isLoading ? (
-                <LoadingState
-                  title="cargando biblioteca"
-                  description="buscando ejercicios para esta clase."
-                  className="min-h-[220px]"
-                />
-              ) : null}
-
-              {libraryQuery.error ? (
-                <ErrorState
-                  title="no pudimos cargar ejercicios"
-                  description={libraryQuery.error.message}
-                  actionLabel="reintentar"
-                  onAction={() => void libraryQuery.refetch()}
-                  className="min-h-[220px]"
-                />
-              ) : null}
-
-              {!libraryQuery.isLoading && !libraryQuery.error ? (
-                <div className="grid min-w-0 gap-3 sm:grid-cols-1 xl:grid-cols-2">
-                  {(libraryQuery.data ?? []).map((exercise) => {
-                    const isAlreadyAdded = isLibraryExerciseAddedToSection(
-                      selectedSection,
-                      exercise,
-                    );
-
-                    return (
-                      <div
-                        key={exercise.id}
-                        className={cn(
-                          "grid min-w-0 gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm",
-                          isAlreadyAdded && "opacity-70",
-                        )}
-                      >
-                        <div className="min-w-0 space-y-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline">
-                              {getOptionLabel(
-                                categoryOptions,
-                                exercise.category,
-                              )}
-                            </Badge>
-                            <Badge variant="outline">
-                              {getOptionLabel(
-                                intensityOptions,
-                                exercise.intensity,
-                              )}
-                            </Badge>
-                            <Badge variant="secondary">
-                              {getExerciseSourceLabel(exercise)}
-                            </Badge>
-                            {isAlreadyAdded ? (
-                              <Badge variant="secondary">ya añadido</Badge>
-                            ) : null}
-                          </div>
-
-                          <div className="min-w-0">
-                            <h4 className="truncate text-base font-semibold text-foreground">
-                              {exercise.name}
-                            </h4>
-                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
-                              {getExerciseDescription(exercise) ||
-                                "sin descripcion"}
-                            </p>
-                          </div>
-
-                          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Dumbbell className="h-3.5 w-3.5" />
-                              {getOptionLabel(levelOptions, exercise.level)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3.5 w-3.5" />
-                              {exercise.averageDurationMinutes
-                                ? `${exercise.averageDurationMinutes} min`
-                                : "sin duracion"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex min-w-0 justify-end">
-                          <Button
-                            type="button"
-                            className="w-full justify-center sm:w-auto"
-                            disabled={
-                              isAlreadyAdded ||
-                              !selectedSectionId ||
-                              addSectionExercise.isPending
-                            }
-                            onClick={() =>
-                              void handleAddLibraryExercise(exercise)
-                            }
-                          >
-                            <Plus className="h-4 w-4" />
-                            {isAlreadyAdded ? "añadido" : "anadir"}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {(libraryQuery.data ?? []).length === 0 ? (
-                    <EmptyState
-                      title="sin resultados"
-                      description="prueba otra busqueda o crea uno manual rapido."
-                      className="min-h-[220px] xl:col-span-2"
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-            </section>
-
-            <section
-              className={cn(
-                "min-w-0 self-start rounded-md border border-border/80 bg-background/45 p-4",
-                addExerciseMode === "manual" ? "block" : "hidden md:block",
-              )}
-            >
-              <div className="flex min-h-full flex-col gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">
-                    ejercicio manual rapido
-                  </h3>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    para anadir algo puntual sin guardarlo en biblioteca.
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="manual-exercise-name">nombre</Label>
+              <section
+                className={cn(
+                  "min-w-0 space-y-4 overflow-x-hidden",
+                  addExerciseMode === "library" ? "block" : "hidden md:block",
+                )}
+              >
+                <div className="space-y-3 rounded-md border border-border/70 bg-background/45 p-4">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      id="manual-exercise-name"
-                      className="h-11"
-                      value={manualExercise.name}
-                      onChange={(event) =>
-                        setManualExercise({
-                          ...manualExercise,
-                          name: event.target.value,
-                        })
-                      }
+                      value={librarySearch}
+                      onChange={(event) => setLibrarySearch(event.target.value)}
+                      placeholder="buscar ejercicios"
+                      className="h-12 pl-11 text-base"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="manual-exercise-description">
-                      descripcion corta
-                    </Label>
-                    <Textarea
-                      id="manual-exercise-description"
-                      rows={3}
-                      value={manualExercise.description}
-                      onChange={(event) =>
-                        setManualExercise({
-                          ...manualExercise,
-                          description: event.target.value,
-                        })
+
+                  <div className="flex items-center justify-between gap-3 md:hidden">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 bg-transparent"
+                      onClick={() =>
+                        setAreLibraryFiltersOpen((currentValue) => !currentValue)
                       }
-                    />
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                      filtros
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-muted-foreground"
+                      disabled={!hasLibraryFilters && !librarySearch.trim()}
+                      onClick={() => {
+                        setLibrarySearch("");
+                        setLibraryCategory(ALL_VALUE);
+                        setLibraryLevel(ALL_VALUE);
+                        setLibraryIntensity(ALL_VALUE);
+                        setLibrarySource(ALL_VALUE);
+                      }}
+                    >
+                      <ListRestart className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-exercise-duration">min.</Label>
-                      <Input
-                        id="manual-exercise-duration"
-                        className="h-11"
-                        type="number"
-                        min="0"
-                        value={manualExercise.durationMinutes}
-                        onChange={(event) =>
-                          setManualExercise({
-                            ...manualExercise,
-                            durationMinutes: event.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-exercise-reps">reps</Label>
-                      <Input
-                        id="manual-exercise-reps"
-                        className="h-11"
-                        type="number"
-                        min="0"
-                        value={manualExercise.reps}
-                        onChange={(event) =>
-                          setManualExercise({
-                            ...manualExercise,
-                            reps: event.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-exercise-rest">descanso s.</Label>
-                      <Input
-                        id="manual-exercise-rest"
-                        className="h-11"
-                        type="number"
-                        min="0"
-                        value={manualExercise.restSec}
-                        onChange={(event) =>
-                          setManualExercise({
-                            ...manualExercise,
-                            restSec: event.target.value,
-                          })
-                        }
-                      />
-                    </div>
+
+                  <div
+                    className={cn(
+                      "grid min-w-0 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap",
+                      areLibraryFiltersOpen ? "grid" : "hidden",
+                    )}
+                  >
+                    <Select
+                      value={libraryCategory}
+                      onValueChange={setLibraryCategory}
+                    >
+                      <SelectTrigger className="h-11 min-w-0 lg:w-[160px]">
+                        <SelectValue placeholder="categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_VALUE}>todas</SelectItem>
+                        {categoryOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={libraryLevel} onValueChange={setLibraryLevel}>
+                      <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
+                        <SelectValue placeholder="nivel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_VALUE}>todos</SelectItem>
+                        {levelOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={libraryIntensity}
+                      onValueChange={setLibraryIntensity}
+                    >
+                      <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
+                        <SelectValue placeholder="intensidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_VALUE}>todas</SelectItem>
+                        {intensityOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={librarySource} onValueChange={setLibrarySource}>
+                      <SelectTrigger className="h-11 min-w-0 lg:w-[150px]">
+                        <SelectValue placeholder="origen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_VALUE}>todos</SelectItem>
+                        <SelectItem value={GLOBAL_SOURCE_VALUE}>
+                          BoxPlanner
+                        </SelectItem>
+                        <SelectItem value={LOCAL_SOURCE_VALUE}>
+                          Mi gimnasio
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="manual-exercise-notes">notas</Label>
-                    <Textarea
-                      id="manual-exercise-notes"
-                      rows={3}
-                      value={manualExercise.notes}
-                      onChange={(event) =>
-                        setManualExercise({
-                          ...manualExercise,
-                          notes: event.target.value,
-                        })
-                      }
-                    />
+
+                  <div className="hidden items-center justify-between gap-3 md:flex">
+                    <p className="text-sm text-muted-foreground">
+                      {(libraryQuery.data ?? []).length} ejercicios disponibles
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      disabled={!hasLibraryFilters && !librarySearch.trim()}
+                      onClick={() => {
+                        setLibrarySearch("");
+                        setLibraryCategory(ALL_VALUE);
+                        setLibraryLevel(ALL_VALUE);
+                        setLibraryIntensity(ALL_VALUE);
+                        setLibrarySource(ALL_VALUE);
+                      }}
+                    >
+                      <ListRestart className="h-4 w-4" />
+                      limpiar
+                    </Button>
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  size="lg"
-                  className="mt-auto w-full"
-                  disabled={!selectedSectionId || addSectionExercise.isPending}
-                  onClick={() => void handleManualAdd()}
-                >
-                  <Plus className="h-4 w-4" />
-                  anadir manual
-                </Button>
-              </div>
-            </section>
+                {libraryQuery.isLoading ? (
+                  <LoadingState
+                    title="cargando biblioteca"
+                    description="buscando ejercicios para esta clase."
+                    className="min-h-[220px]"
+                  />
+                ) : null}
+
+                {libraryQuery.error ? (
+                  <ErrorState
+                    title="no pudimos cargar ejercicios"
+                    description={libraryQuery.error.message}
+                    actionLabel="reintentar"
+                    onAction={() => void libraryQuery.refetch()}
+                    className="min-h-[220px]"
+                  />
+                ) : null}
+
+                {!libraryQuery.isLoading && !libraryQuery.error ? (
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-1 xl:grid-cols-2">
+                    {(libraryQuery.data ?? []).map((exercise) => {
+                      const isAlreadyAdded = isLibraryExerciseAddedToSection(
+                        selectedSection,
+                        exercise,
+                      );
+
+                      return (
+                        <div
+                          key={exercise.id}
+                          className={cn(
+                            "grid min-w-0 gap-4 rounded-md border border-border/80 bg-card/60 p-4 shadow-sm",
+                            isAlreadyAdded && "opacity-70",
+                          )}
+                        >
+                          <div className="min-w-0 space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline">
+                                {getOptionLabel(
+                                  categoryOptions,
+                                  exercise.category,
+                                )}
+                              </Badge>
+                              <Badge variant="outline">
+                                {getOptionLabel(
+                                  intensityOptions,
+                                  exercise.intensity,
+                                )}
+                              </Badge>
+                              <Badge variant="secondary">
+                                {getExerciseSourceLabel(exercise)}
+                              </Badge>
+                              {isAlreadyAdded ? (
+                                <Badge variant="secondary">ya anadido</Badge>
+                              ) : null}
+                            </div>
+
+                            <div className="min-w-0">
+                              <h4 className="truncate text-base font-semibold text-foreground">
+                                {exercise.name}
+                              </h4>
+                              <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                                {getExerciseDescription(exercise) ||
+                                  "sin descripcion"}
+                              </p>
+                            </div>
+
+                            <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Dumbbell className="h-3.5 w-3.5" />
+                                {getOptionLabel(levelOptions, exercise.level)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5" />
+                                {exercise.averageDurationMinutes
+                                  ? `${exercise.averageDurationMinutes} min`
+                                  : "sin duracion"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex min-w-0 justify-end">
+                            <Button
+                              type="button"
+                              className="w-full justify-center sm:w-auto"
+                              disabled={isAlreadyAdded || !selectedSectionId}
+                              onClick={() => addLibraryExercise(exercise)}
+                            >
+                              <Plus className="h-4 w-4" />
+                              {isAlreadyAdded ? "anadido" : "anadir"}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {(libraryQuery.data ?? []).length === 0 ? (
+                      <EmptyState
+                        title="sin resultados"
+                        description="prueba otra busqueda o crea uno manual rapido."
+                        className="min-h-[220px] xl:col-span-2"
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
+
+              <section
+                className={cn(
+                  "min-w-0 self-start rounded-md border border-border/80 bg-background/45 p-4",
+                  addExerciseMode === "manual" ? "block" : "hidden md:block",
+                )}
+              >
+                <div className="flex min-h-full flex-col gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">
+                      ejercicio manual rapido
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      para anadir algo puntual sin guardarlo en biblioteca.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-exercise-name">nombre</Label>
+                      <Input
+                        id="manual-exercise-name"
+                        className="h-11"
+                        value={manualExercise.name}
+                        onChange={(event) =>
+                          setManualExercise({
+                            ...manualExercise,
+                            name: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-exercise-description">
+                        descripcion corta
+                      </Label>
+                      <Textarea
+                        id="manual-exercise-description"
+                        rows={3}
+                        value={manualExercise.description}
+                        onChange={(event) =>
+                          setManualExercise({
+                            ...manualExercise,
+                            description: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="manual-exercise-duration">min.</Label>
+                        <Input
+                          id="manual-exercise-duration"
+                          className="h-11"
+                          type="number"
+                          min="0"
+                          value={manualExercise.durationMinutes}
+                          onChange={(event) =>
+                            setManualExercise({
+                              ...manualExercise,
+                              durationMinutes: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="manual-exercise-reps">reps</Label>
+                        <Input
+                          id="manual-exercise-reps"
+                          className="h-11"
+                          type="number"
+                          min="0"
+                          value={manualExercise.reps}
+                          onChange={(event) =>
+                            setManualExercise({
+                              ...manualExercise,
+                              reps: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="manual-exercise-rest">
+                          descanso s.
+                        </Label>
+                        <Input
+                          id="manual-exercise-rest"
+                          className="h-11"
+                          type="number"
+                          min="0"
+                          value={manualExercise.restSec}
+                          onChange={(event) =>
+                            setManualExercise({
+                              ...manualExercise,
+                              restSec: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manual-exercise-notes">notas</Label>
+                      <Textarea
+                        id="manual-exercise-notes"
+                        rows={3}
+                        value={manualExercise.notes}
+                        onChange={(event) =>
+                          setManualExercise({
+                            ...manualExercise,
+                            notes: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="mt-auto w-full"
+                    disabled={!selectedSectionId}
+                    onClick={addManualExercise}
+                  >
+                    <Plus className="h-4 w-4" />
+                    anadir manual
+                  </Button>
+                </div>
+              </section>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={Boolean(editingExercise)}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            setEditingExercise(null);
-          }
-        }}
+      <AlertDialog
+        open={isDiscardConfirmOpen}
+        onOpenChange={setIsDiscardConfirmOpen}
       >
-        <DialogContent className="max-w-2xl lg:p-7">
-          <DialogHeader>
-            <DialogTitle>editar ejercicio</DialogTitle>
-            <DialogDescription>
-              ajusta tiempos y notas solo dentro de esta clase.
-            </DialogDescription>
-          </DialogHeader>
-
-          {editingExercise ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-plan-exercise-name">nombre</Label>
-                <Input
-                  id="edit-plan-exercise-name"
-                  value={editingExercise.draft.name}
-                  onChange={(event) =>
-                    setEditingExercise({
-                      ...editingExercise,
-                      draft: {
-                        ...editingExercise.draft,
-                        name: event.target.value,
-                      },
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-plan-exercise-description">
-                  descripcion
-                </Label>
-                <Textarea
-                  id="edit-plan-exercise-description"
-                  rows={4}
-                  value={editingExercise.draft.description}
-                  onChange={(event) =>
-                    setEditingExercise({
-                      ...editingExercise,
-                      draft: {
-                        ...editingExercise.draft,
-                        description: event.target.value,
-                      },
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-plan-exercise-duration">min.</Label>
-                  <Input
-                    id="edit-plan-exercise-duration"
-                    type="number"
-                    min="0"
-                    value={editingExercise.draft.durationMinutes}
-                    onChange={(event) =>
-                      setEditingExercise({
-                        ...editingExercise,
-                        draft: {
-                          ...editingExercise.draft,
-                          durationMinutes: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-plan-exercise-reps">reps</Label>
-                  <Input
-                    id="edit-plan-exercise-reps"
-                    type="number"
-                    min="0"
-                    value={editingExercise.draft.reps}
-                    onChange={(event) =>
-                      setEditingExercise({
-                        ...editingExercise,
-                        draft: {
-                          ...editingExercise.draft,
-                          reps: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-plan-exercise-rest">descanso s.</Label>
-                  <Input
-                    id="edit-plan-exercise-rest"
-                    type="number"
-                    min="0"
-                    value={editingExercise.draft.restSec}
-                    onChange={(event) =>
-                      setEditingExercise({
-                        ...editingExercise,
-                        draft: {
-                          ...editingExercise.draft,
-                          restSec: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-plan-exercise-notes">notas</Label>
-                <Textarea
-                  id="edit-plan-exercise-notes"
-                  rows={4}
-                  value={editingExercise.draft.notes}
-                  onChange={(event) =>
-                    setEditingExercise({
-                      ...editingExercise,
-                      draft: {
-                        ...editingExercise.draft,
-                        notes: event.target.value,
-                      },
-                    })
-                  }
-                />
-              </div>
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                disabled={updateSectionExercise.isPending}
-                onClick={() => void handleSaveExercise()}
-              >
-                guardar ejercicio
-              </Button>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>cambios sin guardar</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tienes cambios sin guardar. Quieres salir igualmente?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>seguir editando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setIsDiscardConfirmOpen(false);
+                onOpenChange(false);
+              }}
+            >
+              salir igualmente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
