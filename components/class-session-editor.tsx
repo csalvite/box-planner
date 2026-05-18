@@ -326,6 +326,14 @@ function formatDurationDelta(target?: number | null, estimated?: number) {
   return "encaja";
 }
 
+function formatExerciseCount(count: number) {
+  return `${count} ${count === 1 ? "ejercicio" : "ejercicios"}`;
+}
+
+function formatMinutes(minutes: number) {
+  return `${minutes} min`;
+}
+
 function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
   const nextIndex = index + direction;
 
@@ -612,14 +620,21 @@ export function ClassSessionEditor({
     }
 
     window.setTimeout(() => {
-      document
-        .getElementById(`class-section-${sectionId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const sectionElement = document.getElementById(
+        `class-section-${sectionId}`,
+      );
+
+      sectionElement?.scrollIntoView({ behavior: "smooth", block: "start" });
 
       if (options.focusName) {
-        document.getElementById(`section-name-${sectionId}`)?.focus();
+        const nameInput = document.getElementById(
+          `section-name-${sectionId}`,
+        ) as HTMLInputElement | null;
+
+        nameInput?.focus({ preventScroll: true });
+        nameInput?.select();
       }
-    }, 80);
+    }, 120);
   };
 
   const savePlan = async () => {
@@ -1138,18 +1153,23 @@ export function ClassSessionEditor({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2 rounded-md border border-border/70 bg-card/45 p-2">
+                  <div className="max-h-64 space-y-1.5 overflow-y-auto overflow-x-hidden rounded-md border border-border/70 bg-card/45 p-2">
                     {sections.map((section, sectionIndex) => {
                       const exerciseMinutes =
                         getSectionExerciseTotalMinutes(section);
                       const isSelected = selectedSectionId === section.id;
+                      const targetMinutes = section.estimatedDurationMinutes;
 
                       return (
                         <button
                           key={section.id}
                           type="button"
+                          aria-current={isSelected ? "true" : undefined}
+                          aria-label={`Ir a seccion ${sectionIndex + 1}: ${
+                            section.name || "Sin nombre"
+                          }`}
                           className={cn(
-                            "grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-3 py-2 text-left transition hover:bg-primary/10",
+                            "grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-md px-2.5 py-2 text-left transition hover:bg-primary/10 sm:gap-3 sm:px-3",
                             isSelected && "bg-primary/10 ring-1 ring-primary/20",
                           )}
                           onClick={() =>
@@ -1159,7 +1179,7 @@ export function ClassSessionEditor({
                             })
                           }
                         >
-                          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-xs font-semibold text-primary">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-xs font-semibold text-primary">
                             {sectionIndex + 1}
                           </span>
                           <span className="min-w-0 space-y-1">
@@ -1167,15 +1187,19 @@ export function ClassSessionEditor({
                               {section.name || "Sin nombre"}
                             </span>
                             <span className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              {targetMinutes !== null ? (
+                                <>
+                                  <span>{formatMinutes(targetMinutes)} obj.</span>
+                                  <span aria-hidden="true">/</span>
+                                </>
+                              ) : null}
                               <span>
-                                {section.estimatedDurationMinutes !== null
-                                  ? `${section.estimatedDurationMinutes} min obj.`
-                                  : "sin objetivo"}
+                                {formatExerciseCount(section.exercises.length)}
                               </span>
-                              <span>/</span>
-                              <span>{section.exercises.length} ejercicios</span>
-                              <span>/</span>
-                              <span>{exerciseMinutes} min</span>
+                              <span aria-hidden="true">/</span>
+                              <span>
+                                {formatMinutes(exerciseMinutes)} ejercicios
+                              </span>
                             </span>
                           </span>
                         </button>
